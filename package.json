@@ -8,7 +8,8 @@
     "publish": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "test": "vitest --ui",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "build:search": "node scripts/build-search-index.js"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250204.0",

@@ -49,26 +49,24 @@
     .map-wrapper { order: 1; }
   }
 
-  /* === Map section === */
+  /* === Toolbar (minimal on landing) === */
   .toolbar {
     display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;
   }
-  .toolbar button, .toolbar select {
+  .toolbar button {
     font-family: inherit; font-size: 0.78rem; font-weight: 600;
     padding: 0.3rem 0.7rem; border-radius: 6px;
     border: 2px solid #d4cfc5; background: transparent; color: var(--ink);
     cursor: pointer; transition: all 0.15s;
   }
-  .toolbar button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .toolbar button:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+  .toolbar button:hover { border-color: var(--accent); color: var(--accent); }
   @media (prefers-color-scheme: dark) {
-    .toolbar button, .toolbar select {
+    .toolbar button {
       border-color: var(--dead-dark); color: #e0dbd2;
     }
-    .toolbar button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .toolbar select { background: var(--card-dark); }
   }
 
+  /* === Map === */
   .map-wrapper {
     position: relative;
     width: 100%;
@@ -76,87 +74,44 @@
     aspect-ratio: 975 / 610;
     overflow: hidden;
     flex: 1;
-    touch-action: none;
-    cursor: grab;
   }
   .map-wrapper canvas { display: block; width: 100%; }
-  .points-layer {
-    position: absolute; top: 0; left: 0;
-    width: 100%; height: 100%;
-    pointer-events: none;
+
+  /* === City pin marker === */
+  .city-pin {
+    position: absolute; pointer-events: none;
+    transform: translate(-50%, -100%);
+    animation: pinDrop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    z-index: 10;
   }
-  .data-point {
-    position: absolute; pointer-events: auto;
-    cursor: pointer; opacity: 0; padding: 8px;
-    will-change: transform;
-  }
-  .data-point.visible { opacity: 1; }
-  .data-point .dot {
-    border-radius: 50%;
-    border: 1.5px solid rgba(255,255,255,0.7);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-    transition: transform 0.15s, box-shadow 0.15s;
-  }
-  .data-point:hover .dot {
-    transform: scale(1.4);
+  .city-pin .pin-head {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid #fff;
     box-shadow: 0 2px 8px rgba(232, 84, 47, 0.4);
   }
-  .data-point .pt-label {
-    position: absolute; left: 50%; top: 100%;
+  .city-pin .pin-tail {
+    width: 3px; height: 14px; background: var(--accent);
+    margin: -2px auto 0; border-radius: 0 0 2px 2px;
+  }
+  .city-pin .pin-label {
+    position: absolute; left: 50%; top: -8px;
     transform: translateX(-50%);
-    white-space: nowrap; font-size: 9px; opacity: 0;
-    pointer-events: none; color: var(--ink); font-weight: 600; margin-top: 0;
-    text-shadow: 0 0 3px rgba(245,240,232,0.9), 0 0 6px rgba(245,240,232,0.7);
+    white-space: nowrap; font-size: 11px; font-weight: 700;
+    color: var(--ink); background: rgba(245,240,232,0.9);
+    padding: 1px 6px; border-radius: 4px;
+    text-shadow: none;
   }
   @media (prefers-color-scheme: dark) {
-    .data-point .pt-label {
-      color: #e0dbd2;
-      text-shadow: 0 0 3px rgba(30,27,23,0.9), 0 0 6px rgba(30,27,23,0.7);
+    .city-pin .pin-label {
+      color: #e0dbd2; background: rgba(30,27,23,0.9);
     }
   }
-  .data-point.show-label .pt-label { opacity: 1; }
-
-  /* === Zoom UI === */
-  .zoom-hint {
-    position: absolute; bottom: 12px; left: 50%;
-    transform: translateX(-50%);
-    background: rgba(30, 27, 23, 0.85); color: #e0dbd2;
-    font-size: 0.75rem; padding: 0.35rem 0.8rem;
-    border-radius: 20px; pointer-events: none;
-    opacity: 0; transition: opacity 0.4s; z-index: 10;
-  }
-  .zoom-hint.visible { opacity: 1; }
-  .zoom-indicator {
-    position: absolute; top: 8px; right: 8px;
-    font-size: 0.72rem; font-weight: 700;
-    color: var(--accent); opacity: 0;
-    transition: opacity 0.3s; pointer-events: none; z-index: 10;
-    background: rgba(245,240,232,0.8); padding: 2px 6px; border-radius: 4px;
-  }
-  @media (prefers-color-scheme: dark) {
-    .zoom-indicator { background: rgba(30,27,23,0.8); }
-  }
-  .zoom-indicator.visible { opacity: 1; }
-
-  .zoom-buttons {
-    position: absolute; bottom: 12px; right: 12px;
-    display: flex; flex-direction: column; gap: 4px;
-    opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 10;
-  }
-  .zoom-buttons.visible { opacity: 1; pointer-events: auto; }
-  .zoom-btn {
-    width: 32px; height: 32px; border-radius: 6px;
-    border: 1.5px solid #d4cfc5; background: rgba(250,247,242,0.92);
-    color: var(--ink); font-size: 1.1rem; font-weight: 700;
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
-    transition: border-color 0.15s, background 0.15s;
-    line-height: 1;
-  }
-  .zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .zoom-btn:active { background: rgba(232,84,47,0.1); }
-  @media (prefers-color-scheme: dark) {
-    .zoom-btn { border-color: var(--dead-dark); background: rgba(42,38,33,0.92); color: #e0dbd2; }
-    .zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+  @keyframes pinDrop {
+    0% { opacity: 0; transform: translate(-50%, -300%); }
+    60% { opacity: 1; transform: translate(-50%, -90%); }
+    80% { transform: translate(-50%, -105%); }
+    100% { transform: translate(-50%, -100%); }
   }
 
   /* === Story side === */
@@ -203,31 +158,6 @@
   @media (prefers-color-scheme: dark) {
     .headline { color: #e0dbd2; }
   }
-
-  /* === Preview card === */
-  .preview {
-    position: fixed; top: 0; left: 0; pointer-events: none; z-index: 100;
-    width: 240px; padding: 1rem 1.1rem; border-radius: 12px;
-    background: rgba(30, 27, 23, 0.95); color: #e0dbd2;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2);
-    clip-path: circle(0% at 50% 100%); opacity: 0;
-    transition: clip-path 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s;
-    will-change: transform, clip-path;
-  }
-  .preview.visible { clip-path: circle(150% at 50% 100%); opacity: 1; }
-  .preview .pv-name { font-weight: 700; font-size: 0.92rem; margin-bottom: 0.3rem; line-height: 1.2; }
-  .preview .pv-stat { font-size: 1.2rem; font-weight: 800; color: var(--accent); margin-bottom: 0.15rem; }
-  .preview .pv-desc { font-size: 0.78rem; color: #9a958c; margin-bottom: 0.5rem; }
-  .preview .pv-figures { display: flex; gap: 4px; align-items: flex-end; }
-  .pv-fig { display: flex; flex-direction: column; align-items: center; gap: 1px; }
-  .pv-fig .head { width: 6px; height: 6px; border-radius: 50%; }
-  .pv-fig .body { width: 8px; height: 12px; border-radius: 2px 2px 1px 1px; }
-  .pv-fig.lit .head, .pv-fig.lit .body { background: var(--accent); }
-  .pv-fig.dim .head, .pv-fig.dim .body { background: var(--dead-dark); }
-  .preview .pv-meta {
-    font-size: 0.72rem; color: #6a655c; margin-top: 0.4rem;
-    border-top: 1px solid #3a3632; padding-top: 0.35rem;
-  }
 </style>
 </head>
 <body>
@@ -236,74 +166,11 @@
   <!-- Left: Map -->
   <div class="map-side">
     <div class="toolbar">
-      <select id="stateSelector">
-        <option value="AL">Alabama</option>
-        <option value="AK">Alaska</option>
-        <option value="AZ">Arizona</option>
-        <option value="AR">Arkansas</option>
-        <option value="CA">California</option>
-        <option value="CO">Colorado</option>
-        <option value="CT">Connecticut</option>
-        <option value="DE">Delaware</option>
-        <option value="DC">District of Columbia</option>
-        <option value="FL">Florida</option>
-        <option value="GA">Georgia</option>
-        <option value="HI">Hawaii</option>
-        <option value="ID">Idaho</option>
-        <option value="IL">Illinois</option>
-        <option value="IN">Indiana</option>
-        <option value="IA">Iowa</option>
-        <option value="KS">Kansas</option>
-        <option value="KY">Kentucky</option>
-        <option value="LA">Louisiana</option>
-        <option value="ME">Maine</option>
-        <option value="MD">Maryland</option>
-        <option value="MA">Massachusetts</option>
-        <option value="MI">Michigan</option>
-        <option value="MN">Minnesota</option>
-        <option value="MS">Mississippi</option>
-        <option value="MO">Missouri</option>
-        <option value="MT">Montana</option>
-        <option value="NE">Nebraska</option>
-        <option value="NV">Nevada</option>
-        <option value="NH">New Hampshire</option>
-        <option value="NJ">New Jersey</option>
-        <option value="NM">New Mexico</option>
-        <option value="NY">New York</option>
-        <option value="NC">North Carolina</option>
-        <option value="ND">North Dakota</option>
-        <option value="OH" selected>Ohio</option>
-        <option value="OK">Oklahoma</option>
-        <option value="OR">Oregon</option>
-        <option value="PA">Pennsylvania</option>
-        <option value="RI">Rhode Island</option>
-        <option value="SC">South Carolina</option>
-        <option value="SD">South Dakota</option>
-        <option value="TN">Tennessee</option>
-        <option value="TX">Texas</option>
-        <option value="UT">Utah</option>
-        <option value="VT">Vermont</option>
-        <option value="VA">Virginia</option>
-        <option value="WA">Washington</option>
-        <option value="WV">West Virginia</option>
-        <option value="WI">Wisconsin</option>
-      </select>
-      <button id="resetBtn">US Map</button>
-      <button id="myAreaBtn" style="display:none"></button>
-      <button id="preciseLocBtn" style="display:none" title="Use GPS for precise location">&#x1F4CD; Use my location</button>
-      <button class="active" data-layer="cities">Cities</button>
-      <button data-layer="districts">Districts</button>
-      <button data-layer="schools">Schools</button>
+      <button id="locBtn" style="display:none">Use my location</button>
     </div>
     <div class="map-wrapper" id="mapWrapper">
       <canvas id="mapCanvas" width="975" height="610"></canvas>
-      <div class="points-layer" id="pointsLayer"></div>
-      <div class="zoom-hint" id="zoomHint">Scroll to zoom</div>
-      <div class="zoom-indicator" id="zoomIndicator"></div>
-      <div class="zoom-buttons" id="zoomButtons">
-        <button class="zoom-btn" id="zoomInBtn" title="Zoom in">+</button>
-        <button class="zoom-btn" id="zoomOutBtn" title="Zoom out">&minus;</button>
-      </div>
+      <div id="pinLayer"></div>
     </div>
   </div>
 
@@ -313,19 +180,10 @@
       <canvas id="animCanvas"></canvas>
     </div>
     <div class="message" id="msg">
-      <div class="headline"><span class="num" id="numText">7</span> out of <span class="num" id="denomText">10</span> <span id="stateLabel">Ohio</span> 8th graders are looking at a lifetime of lost potential because they are below proficient in math.</div>
-      <a href="#demo" class="cta-button">Math CoTeacher is the Solution &rarr;</a>
+      <div class="headline"><span class="num" id="numText">3</span> out of <span class="num" id="denomText">4</span> <span id="stateLabel">American</span> 8th graders are looking at a lifetime of lost potential because they are below proficient in math.</div>
+      <a id="exploreBtn" href="explore.html" class="cta-button">Explore the data &rarr;</a>
     </div>
   </div>
-</div>
-
-<!-- Preview card -->
-<div class="preview" id="preview">
-  <div class="pv-name" id="pvName"></div>
-  <div class="pv-stat" id="pvStat"></div>
-  <div class="pv-desc" id="pvDesc"></div>
-  <div class="pv-figures" id="pvFigures"></div>
-  <div class="pv-meta" id="pvMeta"></div>
 </div>
 
 <script>
@@ -356,27 +214,11 @@ const HIGHLIGHT_STROKE = ACCENT;
 const BG = isDark ? '#1e1b17' : '#f5f0e8';
 const DEAD = isDark ? '#3a3632' : '#c5bfb5';
 
-function profColor(p) {
-  if(p>=0.6) return `hsl(${Math.round(100+(p-0.6)*50)},60%,${isDark?42:45}%)`;
-  if(p>=0.3) return `hsl(${Math.round((p-0.3)*333)},65%,${isDark?40:48}%)`;
-  return `hsl(${Math.round(p*100)},70%,${isDark?36:42}%)`;
-}
-
 // =========================================
 // STATE
 // =========================================
-let stateFeatures=[], stateData=null, currentLayer='cities', currentState='OH';
-let zoomScale=1, zoomTx=0, zoomTy=0, displayScale=1;
-// User zoom state: base = state-fit values, user = multiplier on top
-let baseScale=1, baseTx=0, baseTy=0, userZoomLevel=1;
-let targetZoomScale=1, targetZoomTx=0, targetZoomTy=0;
-let smoothZoomRAF=null, labelTimer=null, zoomHintTimer=null;
-let isAnimatingZoom=false; // true during setZoom() animated transitions
-let isDragging=false, dragStartX=0, dragStartY=0, dragStartTx=0, dragStartTy=0;
-let panOffsetX=0, panOffsetY=0, targetPanX=0, targetPanY=0;
-let smoothPanRAF=null;
-let pointElements=[]; // [{el, pt, labelEl}]
-const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+let stateFeatures = [], naepData = null, currentState = null;
+let displayScale = 1;
 
 const FIPS = {
   AL:'01',AK:'02',AZ:'04',AR:'05',CA:'06',CO:'08',CT:'09',DE:'10',DC:'11',
@@ -387,11 +229,23 @@ const FIPS = {
   VT:'50',VA:'51',WA:'53',WV:'54',WI:'55',WY:'56'
 };
 
+const STATE_NAMES = {
+  AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',
+  CO:'Colorado',CT:'Connecticut',DE:'Delaware',DC:'District of Columbia',
+  FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',
+  IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',
+  ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',
+  MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',
+  NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',
+  NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',
+  PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',
+  TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',
+  WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming'
+};
+
 const mapCanvas = document.getElementById('mapCanvas');
 const mapCtx = mapCanvas.getContext('2d');
 const wrapper = document.getElementById('mapWrapper');
-const pointsLayer = document.getElementById('pointsLayer');
-const preview = document.getElementById('preview');
 
 // =========================================
 // LOAD DATA
@@ -399,72 +253,37 @@ const preview = document.getElementById('preview');
 async function loadTopology() {
   stateFeatures = topoDecode(await (await fetch('../public/us-states.json')).json())('states');
 }
-async function loadStateData(code) {
-  try {
-    const r = await fetch(`../public/data/${code}.json`);
-    if (!r.ok) throw new Error(`No data for ${code}`);
-    stateData = await r.json();
-    alignPointsToState(code);
-  } catch {
-    stateData = { state: code, stateName: code, naep: { text: 'N/A', numerator: 0, denominator: 10 }, schools: [], districts: [], cities: [] };
-  }
-}
-
-// The data generation script (prepare-map-data.js) uses D3's default geoAlbersUsa()
-// projection, but the us-states.json topology uses slightly different projection
-// parameters. This remaps data coordinates to align with the topology.
-function alignPointsToState(code) {
-  if (!stateData) return;
-  const bb = getBBox(code);
-  if (!bb) return;
-  const allPts = [
-    ...(stateData.cities || []),
-    ...(stateData.districts || []),
-    ...(stateData.schools || [])
-  ];
-  if (!allPts.length) return;
-  // Compute data bounding box across all layers
-  let dx0=Infinity, dy0=Infinity, dx1=-Infinity, dy1=-Infinity;
-  for (const p of allPts) {
-    if(p.x<dx0)dx0=p.x; if(p.y<dy0)dy0=p.y;
-    if(p.x>dx1)dx1=p.x; if(p.y>dy1)dy1=p.y;
-  }
-  const dw=dx1-dx0, dh=dy1-dy0;
-  if (dw<1||dh<1) return;
-  // Map data bbox → state topology bbox with uniform scale, centered, small padding
-  const pad=0.04;
-  const availW=bb.w*(1-2*pad), availH=bb.h*(1-2*pad);
-  const scale=Math.min(availW/dw, availH/dh);
-  const scaledW=dw*scale, scaledH=dh*scale;
-  const ox=bb.x0+bb.w*pad+(availW-scaledW)/2;
-  const oy=bb.y0+bb.h*pad+(availH-scaledH)/2;
-  for (const p of allPts) {
-    p.x = ox + (p.x - dx0) * scale;
-    p.y = oy + (p.y - dy0) * scale;
-  }
+async function loadNaep() {
+  naepData = await (await fetch('../public/naep.json')).json();
 }
 
 // =========================================
-// MAP RENDERING
+// MAP RENDERING (zoomed-out US, one state highlighted)
 // =========================================
+let highlightPulseAlpha = 0; // for pulse animation
+let pulseAF = null;
+
 function renderMap(hlId) {
   const wW = wrapper.clientWidth;
   displayScale = wW / 975;
   mapCanvas.width = 975; mapCanvas.height = 610;
   mapCanvas.style.width = `${wW}px`;
-  mapCanvas.style.height = `${Math.round(610*displayScale)}px`;
-  mapCtx.clearRect(0,0,975,610);
-  for(const f of stateFeatures){
-    const hi = f.id===hlId;
-    mapCtx.fillStyle = hi?HIGHLIGHT_FILL:STATE_FILL;
-    mapCtx.strokeStyle = hi?HIGHLIGHT_STROKE:STATE_STROKE;
-    mapCtx.lineWidth = hi?2:0.5;
-    const polys = f.type==='MultiPolygon'?f.coordinates:[f.coordinates];
-    for(const poly of polys) for(const ring of poly){
+  mapCanvas.style.height = `${Math.round(610 * displayScale)}px`;
+  mapCtx.clearRect(0, 0, 975, 610);
+  for (const f of stateFeatures) {
+    const hi = f.id === hlId;
+    mapCtx.fillStyle = hi ? HIGHLIGHT_FILL : STATE_FILL;
+    mapCtx.strokeStyle = hi ? HIGHLIGHT_STROKE : STATE_STROKE;
+    mapCtx.lineWidth = hi ? 2.5 : 0.5;
+    if (hi && highlightPulseAlpha > 0) {
+      mapCtx.lineWidth = 2.5 + highlightPulseAlpha * 2;
+    }
+    const polys = f.type === 'MultiPolygon' ? f.coordinates : [f.coordinates];
+    for (const poly of polys) for (const ring of poly) {
       mapCtx.beginPath();
-      for(let i=0;i<ring.length;i++){
-        const sx=ring[i][0]*zoomScale+zoomTx, sy=ring[i][1]*zoomScale+zoomTy;
-        if(i===0) mapCtx.moveTo(sx,sy); else mapCtx.lineTo(sx,sy);
+      for (let i = 0; i < ring.length; i++) {
+        if (i === 0) mapCtx.moveTo(ring[i][0], ring[i][1]);
+        else mapCtx.lineTo(ring[i][0], ring[i][1]);
       }
       mapCtx.closePath(); mapCtx.fill(); mapCtx.stroke();
     }
@@ -472,579 +291,156 @@ function renderMap(hlId) {
 }
 
 function getBBox(code) {
-  const f = stateFeatures.find(f=>f.id===FIPS[code]);
-  if(!f) return null;
-  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
-  const p = f.type==='MultiPolygon'?f.coordinates:[f.coordinates];
-  for(const poly of p) for(const ring of poly) for(const [x,y] of ring){
-    if(x<x0)x0=x;if(y<y0)y0=y;if(x>x1)x1=x;if(y>y1)y1=y;
+  const f = stateFeatures.find(f => f.id === FIPS[code]);
+  if (!f) return null;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const p = f.type === 'MultiPolygon' ? f.coordinates : [f.coordinates];
+  for (const poly of p) for (const ring of poly) for (const [x, y] of ring) {
+    if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y;
   }
-  return {x0,y0,x1,y1,w:x1-x0,h:y1-y0};
+  return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
 }
 
 // =========================================
-// ZOOM (animated transitions)
+// PULSE ANIMATION for state highlight
 // =========================================
-let zoomAF = null;
-function setZoom(sc,tx,ty,anim){
-  const fs=zoomScale,ftx=zoomTx,fty=zoomTy;
-  if(!anim){
-    isAnimatingZoom=false;
-    zoomScale=sc;zoomTx=tx;zoomTy=ty;
-    renderMap(FIPS[currentState]);renderPoints();resolveLabels();
-    return;
-  }
-  if(zoomAF)cancelAnimationFrame(zoomAF);
-  isAnimatingZoom=true;
-  const st=performance.now(),dur=900;
-  function ease(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
-  function tick(now){
-    if(!isAnimatingZoom){return;} // cancelled by pan/scroll
-    const e=ease(Math.min((now-st)/dur,1));
-    zoomScale=fs+(sc-fs)*e;zoomTx=ftx+(tx-ftx)*e;zoomTy=fty+(ty-fty)*e;
-    renderMap(FIPS[currentState]);
-    if(pointElements.length>0)repositionPoints();else renderPoints();
-    if((now-st)/dur<1)zoomAF=requestAnimationFrame(tick);
-    else { isAnimatingZoom=false; checkDotTierChange(); resolveLabels(); }
-  }
-  zoomAF=requestAnimationFrame(tick);
-}
-
-function cancelAnimatedZoom(){
-  if(isAnimatingZoom){
-    isAnimatingZoom=false;
-    if(zoomAF){cancelAnimationFrame(zoomAF);zoomAF=null;}
-  }
-}
-
-function zoomToState(code,anim=true){
-  const bb=getBBox(code);if(!bb)return;
-  const pad=30,s=Math.min((975-pad*2)/bb.w,(610-pad*2)/bb.h,14);
-  const tx=975/2-(bb.x0+bb.x1)/2*s, ty=610/2-(bb.y0+bb.y1)/2*s;
-  // Save as base zoom (state-fit)
-  baseScale=s;baseTx=tx;baseTy=ty;userZoomLevel=1;
-  targetZoomScale=s;targetZoomTx=tx;targetZoomTy=ty;
-  if(smoothZoomRAF){cancelAnimationFrame(smoothZoomRAF);smoothZoomRAF=null;}
-  setZoom(s,tx,ty,anim);
-  updateZoomUI();
-  showZoomHint();
-}
-
-function resetZoom(anim=true){
-  userZoomLevel=1;baseScale=1;baseTx=0;baseTy=0;
-  targetZoomScale=1;targetZoomTx=0;targetZoomTy=0;
-  if(smoothZoomRAF){cancelAnimationFrame(smoothZoomRAF);smoothZoomRAF=null;}
-  setZoom(1,0,0,anim);
-  updateZoomUI();
-  hideZoomHint();
-}
-
-// =========================================
-// COORDINATE TRANSFORM
-// =========================================
-function mapToScreen(px,py){
-  return{x:(px*zoomScale+zoomTx)*displayScale, y:(py*zoomScale+zoomTy)*displayScale};
-}
-
-// =========================================
-// USER SCROLL ZOOM
-// =========================================
-wrapper.addEventListener('wheel',function(e){
-  e.preventDefault();
-  if(baseScale<=1)return; // not zoomed to a state yet
-
-  const rect=wrapper.getBoundingClientRect();
-  const mx=(e.clientX-rect.left)/displayScale;
-  const my=(e.clientY-rect.top)/displayScale;
-
-  // Map point under cursor (in raw map coordinates)
-  const mapX=(mx-zoomTx)/zoomScale;
-  const mapY=(my-zoomTy)/zoomScale;
-
-  // Adjust zoom level (normalize deltaMode)
-  let dy=e.deltaY;
-  if(e.deltaMode===1)dy*=20;
-  const newLevel=Math.max(1,Math.min(20,userZoomLevel*(1-dy*0.002)));
-  if(Math.abs(newLevel-userZoomLevel)<0.001)return;
-  userZoomLevel=newLevel;
-
-  // Compute target zoom keeping map point fixed under cursor
-  targetZoomScale=baseScale*userZoomLevel;
-  targetZoomTx=mx-mapX*targetZoomScale;
-  targetZoomTy=my-mapY*targetZoomScale;
-
-  // Cancel any animated zoom transition
-  cancelAnimatedZoom();
-  if(zoomAF){cancelAnimationFrame(zoomAF);zoomAF=null;}
-
-  hideZoomHint();
-  if(!smoothZoomRAF)smoothZoomLoop();
-  updateZoomUI();
-},{passive:false});
-
-function smoothZoomLoop(){
-  const ease=0.35;
-  zoomScale+=(targetZoomScale-zoomScale)*ease;
-  zoomTx+=(targetZoomTx-zoomTx)*ease;
-  zoomTy+=(targetZoomTy-zoomTy)*ease;
-
-  renderMap(FIPS[currentState]);
-  repositionPoints();
-
-  if(Math.abs(zoomScale-targetZoomScale)>0.001||
-     Math.abs(zoomTx-targetZoomTx)>0.05||
-     Math.abs(zoomTy-targetZoomTy)>0.05){
-    smoothZoomRAF=requestAnimationFrame(smoothZoomLoop);
-  } else {
-    zoomScale=targetZoomScale;zoomTx=targetZoomTx;zoomTy=targetZoomTy;
-    renderMap(FIPS[currentState]);repositionPoints();
-    smoothZoomRAF=null;
-    checkDotTierChange();
-    debouncedResolveLabels();
-  }
-}
-
-function debouncedResolveLabels(){
-  clearTimeout(labelTimer);
-  labelTimer=setTimeout(resolveLabels,150);
-}
-
-// =========================================
-// PAN BOUNDS CLAMPING
-// =========================================
-function clampPanBounds(){
-  const bb=getBBox(currentState);
-  if(!bb)return;
-  // Ensure at least 20% of state bbox stays visible
-  const margin=0.2;
-  const sc=targetZoomScale;
-  const sbb={
-    x0:bb.x0*sc+targetZoomTx, y0:bb.y0*sc+targetZoomTy,
-    x1:bb.x1*sc+targetZoomTx, y1:bb.y1*sc+targetZoomTy
-  };
-  const visW=975, visH=610;
-  // Cap min-visible to half the viewport so constraints don't conflict at high zoom
-  const minVisW=Math.min((sbb.x1-sbb.x0)*margin, visW*0.5);
-  const minVisH=Math.min((sbb.y1-sbb.y0)*margin, visH*0.5);
-  // Don't let the state slide fully off-screen
-  if(sbb.x1<minVisW) targetZoomTx+=(minVisW-sbb.x1);
-  if(sbb.x0>visW-minVisW) targetZoomTx-=(sbb.x0-(visW-minVisW));
-  if(sbb.y1<minVisH) targetZoomTy+=(minVisH-sbb.y1);
-  if(sbb.y0>visH-minVisH) targetZoomTy-=(sbb.y0-(visH-minVisH));
-}
-
-// =========================================
-// CLICK-AND-DRAG PANNING (desktop)
-// =========================================
-wrapper.addEventListener('mousedown',function(e){
-  if(e.button!==0||baseScale<=1)return;
-  cancelAnimatedZoom();
-  cancelGeoZoom();
-  isDragging=true;
-  dragStartX=e.clientX; dragStartY=e.clientY;
-  dragStartTx=targetZoomTx; dragStartTy=targetZoomTy;
-  wrapper.style.cursor='grabbing';
-  e.preventDefault();
-});
-
-document.addEventListener('mousemove',function(e){
-  if(!isDragging)return;
-  const dx=(e.clientX-dragStartX)/displayScale;
-  const dy=(e.clientY-dragStartY)/displayScale;
-  targetZoomTx=dragStartTx+dx;
-  targetZoomTy=dragStartTy+dy;
-  clampPanBounds();
-  // Drive smooth pan directly through smoothZoomLoop
-  if(!smoothZoomRAF)smoothZoomLoop();
-});
-
-document.addEventListener('mouseup',function(){
-  if(!isDragging)return;
-  isDragging=false;
-  wrapper.style.cursor='grab';
-  debouncedResolveLabels();
-});
-
-// =========================================
-// TOUCH PINCH-TO-ZOOM + DRAG-TO-PAN
-// =========================================
-let touchStartDist=0, touchStartZoom=1;
-let touchMode='none'; // 'none','pan','pinch'
-let touchStartX=0, touchStartY=0, touchStartTx=0, touchStartTy=0;
-let touchPrevMidX=0, touchPrevMidY=0;
-
-wrapper.addEventListener('touchstart',function(e){
-  if(baseScale<=1)return;
-  cancelAnimatedZoom();
-  cancelGeoZoom();
-
-  if(e.touches.length===2){
-    e.preventDefault();
-    touchMode='pinch';
-    const t0=e.touches[0],t1=e.touches[1];
-    touchStartDist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
-    touchStartZoom=userZoomLevel;
-    touchPrevMidX=(t0.clientX+t1.clientX)/2;
-    touchPrevMidY=(t0.clientY+t1.clientY)/2;
-  } else if(e.touches.length===1){
-    e.preventDefault();
-    touchMode='pan';
-    touchStartX=e.touches[0].clientX;
-    touchStartY=e.touches[0].clientY;
-    touchStartTx=targetZoomTx;
-    touchStartTy=targetZoomTy;
-  }
-},{passive:false});
-
-wrapper.addEventListener('touchmove',function(e){
-  if(baseScale<=1)return;
-  e.preventDefault();
-
-  if(e.touches.length===2&&touchMode==='pinch'){
-    const t0=e.touches[0],t1=e.touches[1];
-    const dist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
-    const ratio=dist/touchStartDist;
-    const midX=(t0.clientX+t1.clientX)/2;
-    const midY=(t0.clientY+t1.clientY)/2;
-
-    const rect=wrapper.getBoundingClientRect();
-    const cx=(midX-rect.left)/displayScale;
-    const cy=(midY-rect.top)/displayScale;
-    const mapX=(cx-zoomTx)/zoomScale;
-    const mapY=(cy-zoomTy)/zoomScale;
-
-    userZoomLevel=Math.max(1,Math.min(20,touchStartZoom*ratio));
-    targetZoomScale=baseScale*userZoomLevel;
-    targetZoomTx=cx-mapX*targetZoomScale;
-    targetZoomTy=cy-mapY*targetZoomScale;
-
-    // Also pan with two-finger drag
-    const panDx=(midX-touchPrevMidX)/displayScale;
-    const panDy=(midY-touchPrevMidY)/displayScale;
-    targetZoomTx+=panDx; targetZoomTy+=panDy;
-    touchPrevMidX=midX; touchPrevMidY=midY;
-
-    clampPanBounds();
-    hideZoomHint();
-    if(!smoothZoomRAF)smoothZoomLoop();
-    updateZoomUI();
-  } else if(e.touches.length===1&&touchMode!=='none'){
-    // Went from 2 fingers to 1: transition smoothly to pan
-    if(touchMode==='pinch'){
-      touchMode='pan';
-      touchStartX=e.touches[0].clientX;
-      touchStartY=e.touches[0].clientY;
-      touchStartTx=targetZoomTx;
-      touchStartTy=targetZoomTy;
+function pulseHighlight(code) {
+  if (pulseAF) cancelAnimationFrame(pulseAF);
+  const start = performance.now();
+  const dur = 1800; // 3 pulses over 1.8s
+  function tick(now) {
+    const t = (now - start) / dur;
+    if (t >= 1) {
+      highlightPulseAlpha = 0;
+      renderMap(FIPS[code]);
+      pulseAF = null;
       return;
     }
-    const dx=(e.touches[0].clientX-touchStartX)/displayScale;
-    const dy=(e.touches[0].clientY-touchStartY)/displayScale;
-    targetZoomTx=touchStartTx+dx;
-    targetZoomTy=touchStartTy+dy;
-    clampPanBounds();
-    if(!smoothZoomRAF)smoothZoomLoop();
+    // 3 sine pulses
+    highlightPulseAlpha = Math.sin(t * Math.PI * 3) * (1 - t);
+    renderMap(FIPS[code]);
+    pulseAF = requestAnimationFrame(tick);
   }
-},{passive:false});
-
-wrapper.addEventListener('touchend',function(e){
-  if(e.touches.length===0){
-    touchMode='none';
-    debouncedResolveLabels();
-  } else if(e.touches.length===1&&touchMode==='pinch'){
-    // Went from 2 fingers to 1: transition to pan
-    touchMode='pan';
-    touchStartX=e.touches[0].clientX;
-    touchStartY=e.touches[0].clientY;
-    touchStartTx=targetZoomTx;
-    touchStartTy=targetZoomTy;
-  }
-});
-
-// =========================================
-// ZOOM UI (hint + indicator)
-// =========================================
-function showZoomHint(){
-  clearTimeout(zoomHintTimer);
-  const hint=document.getElementById('zoomHint');
-  hint.textContent=isTouch?'Pinch to zoom \u2022 Drag to pan':'Scroll to zoom \u2022 Drag to pan';
-  zoomHintTimer=setTimeout(()=>hint.classList.add('visible'),2000);
+  pulseAF = requestAnimationFrame(tick);
 }
 
-function hideZoomHint(){
-  clearTimeout(zoomHintTimer);
-  document.getElementById('zoomHint').classList.remove('visible');
-}
-
-function updateZoomUI(){
-  const ind=document.getElementById('zoomIndicator');
-  const btns=document.getElementById('zoomButtons');
-  if(userZoomLevel>1.05){
-    ind.textContent=`${userZoomLevel.toFixed(1)}x`;
-    ind.classList.add('visible');
-  } else {
-    ind.classList.remove('visible');
-  }
-  // Show zoom buttons whenever we're zoomed into a state
-  if(baseScale>1){
-    btns.classList.add('visible');
-  } else {
-    btns.classList.remove('visible');
-  }
-}
-
-// Zoom button handlers
-document.getElementById('zoomInBtn').addEventListener('click',function(e){
-  e.stopPropagation();
-  if(baseScale<=1)return;
-  cancelAnimatedZoom();
-  // Zoom centered on viewport middle
-  const cx=975/2, cy=610/2;
-  const mapX=(cx-zoomTx)/zoomScale, mapY=(cy-zoomTy)/zoomScale;
-  userZoomLevel=Math.min(20,userZoomLevel*1.5);
-  targetZoomScale=baseScale*userZoomLevel;
-  targetZoomTx=cx-mapX*targetZoomScale;
-  targetZoomTy=cy-mapY*targetZoomScale;
-  clampPanBounds();
-  if(!smoothZoomRAF)smoothZoomLoop();
-  updateZoomUI();
-  hideZoomHint();
-});
-
-document.getElementById('zoomOutBtn').addEventListener('click',function(e){
-  e.stopPropagation();
-  if(baseScale<=1)return;
-  cancelAnimatedZoom();
-  const cx=975/2, cy=610/2;
-  const mapX=(cx-zoomTx)/zoomScale, mapY=(cy-zoomTy)/zoomScale;
-  userZoomLevel=Math.max(1,userZoomLevel/1.5);
-  targetZoomScale=baseScale*userZoomLevel;
-  targetZoomTx=cx-mapX*targetZoomScale;
-  targetZoomTy=cy-mapY*targetZoomScale;
-  clampPanBounds();
-  if(!smoothZoomRAF)smoothZoomLoop();
-  updateZoomUI();
-});
-
 // =========================================
-// CLICK STATE TO ZOOM
+// CLICK STATE ON MAP
 // =========================================
-function pointInPoly(x,y,ring){
-  let inside=false;
-  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
-    const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
-    if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi) inside=!inside;
+function pointInPoly(x, y, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
 }
-let clickStartX=0,clickStartY=0;
-wrapper.addEventListener('mousedown',function(e){clickStartX=e.clientX;clickStartY=e.clientY;},true);
-mapCanvas.addEventListener('click',async function(e){
-  if(Math.abs(e.clientX-clickStartX)>5||Math.abs(e.clientY-clickStartY)>5)return;
-  const rect=wrapper.getBoundingClientRect();
-  const mx=((e.clientX-rect.left)/displayScale-zoomTx)/zoomScale;
-  const my=((e.clientY-rect.top)/displayScale-zoomTy)/zoomScale;
-  const avail=new Set([...document.getElementById('stateSelector').options].map(o=>o.value));
-  for(const f of stateFeatures){
-    const code=Object.keys(FIPS).find(k=>FIPS[k]===f.id);
-    if(!code||!avail.has(code))continue;
-    const polys=f.type==='MultiPolygon'?f.coordinates:[f.coordinates];
-    for(const poly of polys){
-      if(pointInPoly(mx,my,poly[0])){
-        currentState=code;
-        document.getElementById('stateSelector').value=code;
-        await loadStateData(currentState);
-        pointsLayer.innerHTML='';pointElements=[];
-        updateStory();
-        zoomToState(currentState,true);
-        if(geoResult){
-          const nearest=findNearestCity(geoResult.lat,geoResult.lon);
-          const btn=document.getElementById('myAreaBtn');
-          if(nearest){geoNearestCity=nearest;geoNearestSchool=findNearestSchool(nearest);setupMyAreaButton(nearest);}
-          else{geoNearestCity=null;geoNearestSchool=null;btn.style.display='none';}
-        }
+
+mapCanvas.addEventListener('click', function (e) {
+  const rect = wrapper.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) / displayScale;
+  const my = (e.clientY - rect.top) / displayScale;
+  for (const f of stateFeatures) {
+    const code = Object.keys(FIPS).find(k => FIPS[k] === f.id);
+    if (!code) continue;
+    const polys = f.type === 'MultiPolygon' ? f.coordinates : [f.coordinates];
+    for (const poly of polys) {
+      if (pointInPoly(mx, my, poly[0])) {
+        selectState(code);
         return;
       }
     }
   }
 });
 
-// =========================================
-// GEOLOCATION + AUTO-ZOOM
-// =========================================
-let geoResult = null; // { lat, lon, city } or null
-let geoZoomPending = true; // set false if user interacts before geo-zoom
-let geoNearestCity = null; // nearest city to user's IP
-let geoNearestSchool = null; // nearest school to user's IP
+function selectState(code) {
+  currentState = code;
+  updateExploreLink();
+  updateStoryFromNaep(code);
+  pulseHighlight(code);
+}
 
+function updateExploreLink() {
+  const btn = document.getElementById('exploreBtn');
+  if (currentState) {
+    btn.href = `explore.html?state=${currentState}`;
+  } else {
+    btn.href = 'explore.html';
+  }
+}
+
+// =========================================
+// GEOLOCATION (IP-based, background)
+// =========================================
 async function getGeoLocation() {
   try {
     const r = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
-    if (!r.ok) throw new Error('ipapi failed');
+    if (!r.ok) throw new Error();
     const d = await r.json();
     if (d.latitude && d.longitude) return { lat: d.latitude, lon: d.longitude, city: d.city || '', region: d.region_code || '' };
   } catch {}
   try {
     const r = await fetch('https://ipwho.is/', { signal: AbortSignal.timeout(4000) });
-    if (!r.ok) throw new Error('ipwho failed');
+    if (!r.ok) throw new Error();
     const d = await r.json();
     if (d.latitude && d.longitude) return { lat: d.latitude, lon: d.longitude, city: d.city || '', region: d.region || '' };
   } catch {}
   return null;
 }
 
-function findNearestCity(lat, lon) {
-  if (!stateData || !stateData.cities) return null;
-  let best = null, bestDist = Infinity;
-  for (const c of stateData.cities) {
-    if (!c.lat || !c.lon) continue;
-    const d = (c.lat - lat) ** 2 + (c.lon - lon) ** 2;
-    if (d < bestDist) { bestDist = d; best = c; }
-  }
-  // Skip if nearest city is more than ~3 degrees away (way outside the state)
-  if (bestDist > 9) return null;
-  return best;
-}
-
-function findNearestSchool(nearCity) {
-  if (!stateData || !stateData.schools || !nearCity) return null;
-  let best = null, bestDist = Infinity;
-  for (const s of stateData.schools) {
-    const d = (s.x - nearCity.x) ** 2 + (s.y - nearCity.y) ** 2;
-    if (d < bestDist) { bestDist = d; best = s; }
-  }
-  return best;
-}
-
-function zoomToCity(city) {
-  if (!city || baseScale <= 1) return;
-  // city.x/y are in the same coordinate space as the map
-  const targetUserZoom = 2.5;
-  userZoomLevel = targetUserZoom;
-  const sc = baseScale * targetUserZoom;
-  const tx = 975 / 2 - city.x * sc;
-  const ty = 610 / 2 - city.y * sc;
-  targetZoomScale = sc; targetZoomTx = tx; targetZoomTy = ty;
-  if (smoothZoomRAF) { cancelAnimationFrame(smoothZoomRAF); smoothZoomRAF = null; }
-  setZoom(sc, tx, ty, true);
-  updateZoomUI();
-}
-
-function setupMyAreaButton(city) {
-  const btn = document.getElementById('myAreaBtn');
-  btn.textContent = `My area: ${city.name}`;
-  btn.style.display = '';
-  btn._city = city;
-  if (!btn._hasListener) {
-    btn._hasListener = true;
-    btn.addEventListener('click', () => {
-      if (btn._city) zoomToCity(btn._city);
-    });
-  }
-}
-
-// Cancel auto geo-zoom if user interacts
-function cancelGeoZoom() { geoZoomPending = false; }
-wrapper.addEventListener('wheel', cancelGeoZoom, { once: true });
-wrapper.addEventListener('touchstart', cancelGeoZoom, { once: true });
-wrapper.addEventListener('mousedown', cancelGeoZoom, { once: true });
-
-// Find which state code a projected point falls inside
-function stateFromPoint(px, py) {
-  for (const f of stateFeatures) {
-    const code = Object.keys(FIPS).find(k => FIPS[k] === f.id);
-    if (!code) continue;
-    const polys = f.type === 'MultiPolygon' ? f.coordinates : [f.coordinates];
-    for (const poly of polys) {
-      if (pointInPoly(px, py, poly[0])) return code;
-    }
-  }
-  return null;
-}
-
-// Switch to a state, load data, zoom, and optionally zoom to a city
-async function switchToState(code, thenZoomCity) {
-  const sel = document.getElementById('stateSelector');
-  if (![...sel.options].some(o => o.value === code)) return false;
-  currentState = code;
-  sel.value = code;
-  await loadStateData(currentState);
-  pointsLayer.innerHTML = ''; pointElements = [];
-  updateStory();
-  zoomToState(currentState, true);
-  if (thenZoomCity) {
-    // Wait for state zoom to settle, then zoom to city
-    setTimeout(() => zoomToCity(thenZoomCity), 1800);
-  }
-  return true;
-}
-
-// Precise location via browser geolocation API (user-triggered only)
-function initPreciseLocationBtn() {
-  const btn = document.getElementById('preciseLocBtn');
-  if (!navigator.geolocation) return; // no geolocation support
+// =========================================
+// GPS LOCATION + CITY PIN
+// =========================================
+function initLocationBtn() {
+  const btn = document.getElementById('locBtn');
+  if (!navigator.geolocation) return;
   btn.style.display = '';
   btn.addEventListener('click', () => {
     btn.textContent = 'Locating...';
     btn.disabled = true;
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-        geoResult = { lat, lon, city: '', region: '' };
-        // Use reverse geocoding to determine state accurately
-        let detectedState = null;
+        const lat = pos.coords.latitude, lon = pos.coords.longitude;
+        let detectedState = null, cityName = '';
         try {
           const resp = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
           if (resp.ok) {
             const geo = await resp.json();
-            const code = geo.principalSubdivisionCode; // e.g. "US-OH"
-            if (code && code.startsWith('US-')) {
-              detectedState = code.slice(3);
-            }
+            const code = geo.principalSubdivisionCode;
+            if (code && code.startsWith('US-')) detectedState = code.slice(3);
+            cityName = geo.city || geo.locality || '';
           }
-        } catch (e) { /* fall through */ }
-        if (detectedState && detectedState !== currentState) {
-          await switchToState(detectedState);
+        } catch {}
+        if (detectedState) {
+          selectState(detectedState);
+          updateExploreLink();
+          // Add lat/lon to explore link
+          const exploreBtn = document.getElementById('exploreBtn');
+          exploreBtn.href = `explore.html?state=${detectedState}&lat=${lat}&lon=${lon}&city=${encodeURIComponent(cityName)}`;
         }
-        // Now find nearest city within the (possibly new) state
-        const nearest = findNearestCity(lat, lon);
-        if (nearest) {
-          geoNearestCity = nearest;
-          geoNearestSchool = findNearestSchool(nearest);
-          setupMyAreaButton(nearest);
-          zoomToCity(nearest);
+        // Drop a pin on the city
+        if (detectedState) {
+          const projected = projectionFromLatLon(lon, lat);
+          if (projected) dropPin(projected[0], projected[1], cityName);
         }
-        btn.textContent = '\u{1F4CD} Use my location';
+        btn.textContent = cityName ? `My location: ${cityName}` : 'Use my location';
         btn.disabled = false;
       },
-      (err) => {
-        btn.textContent = '\u{1F4CD} Use my location';
-        btn.disabled = false;
-      },
+      () => { btn.textContent = 'Use my location'; btn.disabled = false; },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   });
 }
 
-// Simple AlbersUSA forward projection (approximate, matches d3.geoAlbersUsa defaults)
+// Simple AlbersUSA forward projection
 function projectionFromLatLon(lon, lat) {
-  // d3.geoAlbersUsa default: scale 1070, translate [480, 250] for 960x600
-  // Our viewport is 975x610, so we use the default geoAlbersUsa which maps to 975x610
-  // Simplified Albers equal-area conic for lower 48
   if (lat < 24 || lat > 50 || lon < -130 || lon > -65) {
-    // Hawaii or Alaska - rough approximation
-    if (lat >= 18 && lat <= 23 && lon >= -161 && lon <= -154) {
-      // Hawaii approximate
+    if (lat >= 18 && lat <= 23 && lon >= -161 && lon <= -154)
       return [260 + (lon + 160) * 15, 520 + (20.5 - lat) * 15];
-    }
-    if (lat >= 51 && lat <= 72 && lon >= -180 && lon <= -129) {
-      // Alaska approximate
+    if (lat >= 51 && lat <= 72 && lon >= -180 && lon <= -129)
       return [150 + (lon + 170) * 3.5, 490 + (65 - lat) * 5];
-    }
     return null;
   }
-  // Lower 48: approximate Albers projection
   const lambda0 = -96 * Math.PI / 180;
   const phi0 = 37.5 * Math.PI / 180;
   const phi1 = 29.5 * Math.PI / 180;
@@ -1058,447 +454,183 @@ function projectionFromLatLon(lon, lat) {
   const theta = n * (lambda - lambda0);
   const x = rho * Math.sin(theta);
   const y = rho0 - rho * Math.cos(theta);
-  // Scale and translate to 975x610 viewport (d3 geoAlbersUsa defaults)
   const scale = 1070;
   const tx = 487.5, ty = 305;
   return [x * scale + tx, -y * scale + ty];
 }
 
-// =========================================
-// MAGNETIC HOVER SYSTEM
-// =========================================
-function lerp(a,b,t){return a+(b-a)*t;}
-let pvX=0,pvY=0,pvTX=0,pvTY=0,pvVisible=false,pvActiveEl=null;
-const magState = new WeakMap();
-function getMag(el){if(!magState.has(el))magState.set(el,{dx:0,dy:0,tdx:0,tdy:0});return magState.get(el);}
-
-function hoverLoop(){
-  if(pvVisible){
-    pvX=lerp(pvX,pvTX,0.14); pvY=lerp(pvY,pvTY,0.14);
-    preview.style.transform=`translate(${Math.round(pvX)}px,${Math.round(pvY)}px)`;
-  }
-  if(pvActiveEl){
-    const m=getMag(pvActiveEl);
-    m.dx=lerp(m.dx,m.tdx,0.18); m.dy=lerp(m.dy,m.tdy,0.18);
-    pvActiveEl.style.transform=`translate(calc(-50% + ${m.dx.toFixed(1)}px), calc(-50% + ${m.dy.toFixed(1)}px))`;
-  }
-  requestAnimationFrame(hoverLoop);
-}
-requestAnimationFrame(hoverLoop);
-
-function showPreview(el,pt){
-  if(isDragging||touchMode==='pan')return;
-  pvActiveEl=el;
-  document.getElementById('pvName').textContent=pt.name;
-  document.getElementById('pvStat').textContent=`${Math.round(pt.proficiency*100)}%`;
-  document.getElementById('pvDesc').textContent='proficient in 8th grade math';
-  const figs=document.getElementById('pvFigures');figs.innerHTML='';
-  const lit=Math.round(pt.proficiency*10);
-  for(let i=0;i<10;i++){const f=document.createElement('div');f.className=`pv-fig ${i<lit?'lit':'dim'}`;f.innerHTML='<div class="head"></div><div class="body"></div>';figs.appendChild(f);}
-  let meta='';
-  if(pt.schoolCount)meta=`${pt.schoolCount} school${pt.schoolCount>1?'s':''}`;
-  else if(pt.district)meta=pt.district;
-  document.getElementById('pvMeta').textContent=meta;
-  const r=el.getBoundingClientRect();
-  pvTX=r.left+r.width/2-120; pvTY=r.top-180;
-  if(!pvVisible){pvX=pvTX;pvY=pvTY;preview.style.transform=`translate(${Math.round(pvX)}px,${Math.round(pvY)}px)`;}
-  pvVisible=true;preview.classList.add('visible');
-}
-function movePreview(e,el){
-  if(!pvActiveEl)return;
-  pvTX=Math.max(8,Math.min(e.clientX-120,window.innerWidth-248));
-  pvTY=Math.max(8,e.clientY-190);
-  const r=el.getBoundingClientRect(),dx=e.clientX-r.left-r.width/2,dy=e.clientY-r.top-r.height/2;
-  const m=getMag(el);m.tdx=Math.max(-6,Math.min(6,dx*0.2));m.tdy=Math.max(-6,Math.min(6,dy*0.2));
-}
-function hidePreview(el){
-  pvVisible=false;preview.classList.remove('visible');
-  if(el){const m=getMag(el);m.tdx=0;m.tdy=0;}
-  pvActiveEl=null;
+function dropPin(mapX, mapY, label) {
+  const layer = document.getElementById('pinLayer');
+  layer.innerHTML = '';
+  const pin = document.createElement('div');
+  pin.className = 'city-pin';
+  pin.style.left = `${mapX * displayScale}px`;
+  pin.style.top = `${mapY * displayScale}px`;
+  pin.innerHTML = `<div class="pin-label">${label}</div><div class="pin-head"></div><div class="pin-tail"></div>`;
+  layer.appendChild(pin);
 }
 
 // =========================================
-// ZOOM-BASED DOT FILTERING
-// =========================================
-let prevDotTier = -1; // track which tier we're in to avoid redundant re-renders
-
-function getVisiblePoints() {
-  if (!stateData) return [];
-  const all = (stateData[currentLayer] || []).slice();
-  // Only filter cities layer — districts/schools show all
-  if (currentLayer !== 'cities') return all;
-  // Sort by schoolCount descending so we keep the biggest cities
-  all.sort((a, b) => (b.schoolCount || 0) - (a.schoolCount || 0));
-  if (userZoomLevel >= 5.0) return all;
-  const limit = userZoomLevel < 1.5 ? 15 : userZoomLevel < 3.0 ? 40 : 100;
-  const result = all.slice(0, limit);
-  // Always include nearby cities from user's geo-location, capped and sorted by size
-  if (geoResult) {
-    const resultSet = new Set(result);
-    const nearby = all
-      .filter(c => !resultSet.has(c) && c.lat && c.lon && (c.lat - geoResult.lat) ** 2 + (c.lon - geoResult.lon) ** 2 < 0.16)
-      .sort((a, b) => (b.schoolCount || 0) - (a.schoolCount || 0))
-      .slice(0, 15);
-    for (const c of nearby) result.push(c);
-  }
-  return result;
-}
-
-function getDotTier() {
-  if (currentLayer !== 'cities') return 3;
-  if (userZoomLevel < 1.5) return 0;
-  if (userZoomLevel < 3.0) return 1;
-  if (userZoomLevel < 5.0) return 2;
-  return 3;
-}
-
-function checkDotTierChange() {
-  const tier = getDotTier();
-  if (tier !== prevDotTier) {
-    prevDotTier = tier;
-    renderPoints();
-    resolveLabels();
-  }
-}
-
-// =========================================
-// DATA POINTS
-// =========================================
-function renderPoints(){
-  pointsLayer.innerHTML='';hidePreview(null);pointElements=[];
-  if(!stateData)return;
-  prevDotTier = getDotTier();
-  const pts = getVisiblePoints();
-  const showLabels=true;
-  const dotSize=currentLayer==='schools'?5:currentLayer==='districts'?7:9;
-  const wW=wrapper.clientWidth,wH=wrapper.clientHeight;
-
-  // Sort by schoolCount descending — biggest cities/districts get label priority
-  if(showLabels) pts.sort((a,b)=>(b.schoolCount||0)-(a.schoolCount||0));
-
-  for(const pt of pts){
-    const{x:sx,y:sy}=mapToScreen(pt.x,pt.y);
-    const offScreen=sx<-20||sx>wW+20||sy<-20||sy>wH+20;
-    const el=document.createElement('div');
-    el.className='data-point';el.style.left=`${sx}px`;el.style.top=`${sy}px`;
-    el.style.transform='translate(-50%,-50%)';
-    if(offScreen)el.style.display='none';
-    const dot=document.createElement('div');dot.className='dot';
-    dot.style.width=`${dotSize}px`;dot.style.height=`${dotSize}px`;
-    dot.style.background=profColor(pt.proficiency);el.appendChild(dot);
-    let labelEl=null;
-    if(showLabels){
-      labelEl=document.createElement('div');labelEl.className='pt-label';labelEl.textContent=pt.name;
-      el.appendChild(labelEl);
-      // Don't add show-label here — resolveLabels() decides which ones to show
-    }
-    el.addEventListener('mouseenter',()=>showPreview(el,pt));
-    el.addEventListener('mousemove',e=>movePreview(e,el));
-    el.addEventListener('mouseleave',()=>hidePreview(el));
-    pointsLayer.appendChild(el);
-    pointElements.push({el,pt,labelEl});
-  }
-
-  // Add nearest school dot when geo-located (on non-schools layers)
-  if (geoNearestSchool && currentLayer !== 'schools') {
-    const pt = geoNearestSchool;
-    const {x: sx, y: sy} = mapToScreen(pt.x, pt.y);
-    const offScreen = sx < -20 || sx > wW + 20 || sy < -20 || sy > wH + 20;
-    const el = document.createElement('div');
-    el.className = 'data-point'; el.style.left = `${sx}px`; el.style.top = `${sy}px`;
-    el.style.transform = 'translate(-50%,-50%)';
-    if (offScreen) el.style.display = 'none';
-    const dot = document.createElement('div'); dot.className = 'dot';
-    dot.style.width = '5px'; dot.style.height = '5px';
-    dot.style.background = profColor(pt.proficiency); el.appendChild(dot);
-    const labelEl = document.createElement('div'); labelEl.className = 'pt-label';
-    labelEl.textContent = pt.name; el.appendChild(labelEl);
-    el.addEventListener('mouseenter', () => showPreview(el, pt));
-    el.addEventListener('mousemove', e => movePreview(e, el));
-    el.addEventListener('mouseleave', () => hidePreview(el));
-    pointsLayer.appendChild(el);
-    pointElements.push({el, pt, labelEl});
-  }
-
-  requestAnimationFrame(()=>{pointsLayer.querySelectorAll('.data-point').forEach(el=>el.classList.add('visible'));});
-}
-
-function repositionPoints(){
-  const wW=wrapper.clientWidth,wH=wrapper.clientHeight;
-  for(const{el,pt}of pointElements){
-    const{x:sx,y:sy}=mapToScreen(pt.x,pt.y);
-    if(sx<-20||sx>wW+20||sy<-20||sy>wH+20){
-      el.style.display='none';
-    } else {
-      el.style.display='';
-      el.style.left=`${sx}px`;el.style.top=`${sy}px`;
-    }
-  }
-}
-
-// =========================================
-// LABEL COLLISION DETECTION
-// =========================================
-function resolveLabels(){
-  const wW=wrapper.clientWidth,wH=wrapper.clientHeight;
-  const placed=[]; // bounding boxes of placed labels
-  // pointElements is already sorted by priority (schoolCount desc)
-  for(const{el,pt,labelEl}of pointElements){
-    if(!labelEl){el.classList.remove('show-label');continue;}
-    const{x:sx,y:sy}=mapToScreen(pt.x,pt.y);
-    if(sx<-20||sx>wW+20||sy<-20||sy>wH+20){
-      el.classList.remove('show-label');continue;
-    }
-    // Estimate label bounding box (centered below dot) with padding to prevent tight clusters
-    const charW=5.8, pad=8;
-    const labelW=pt.name.length*charW+pad*2, labelH=13+pad;
-    const lx=sx-labelW/2, ly=sy+6-pad/2;
-    // Check overlap against already-placed labels
-    let overlaps=false;
-    for(const b of placed){
-      if(lx<b.x+b.w&&lx+labelW>b.x&&ly<b.y+b.h&&ly+labelH>b.y){
-        overlaps=true;break;
-      }
-    }
-    if(!overlaps){
-      el.classList.add('show-label');
-      placed.push({x:lx,y:ly,w:labelW,h:labelH});
-    } else {
-      el.classList.remove('show-label');
-    }
-  }
-}
-
-// =========================================
-// FIGURE ANIMATION (from ember prototype)
+// FIGURE ANIMATION
 // =========================================
 const animCanvas = document.getElementById('animCanvas');
 const animCtx = animCanvas.getContext('2d');
-let AW,AH,AFW,AFH,AGAP,ASX,ASY;
-let TOTAL=10,FLICKER_COUNT=7;
-let formingPixels=[],animStart=0,animAF,textShown=false;
+let AW, AH, AFW, AFH, AGAP, ASX, ASY;
+let TOTAL = 4, FLICKER_COUNT = 3;
+let formingPixels = [], animStart = 0, animAF, textShown = false;
 
-function animSizing(){
+function animSizing() {
   const container = animCanvas.parentElement;
   const maxW = container.clientWidth;
-  AW=maxW; AH=Math.round(maxW*0.38);
-  animCanvas.width=AW; animCanvas.height=AH;
-  AFW=Math.round(AW*0.055); AFH=Math.round(AFW*2.6);
-  AGAP=Math.round((AW-AFW*TOTAL)/(TOTAL+1)); ASX=AGAP;
-  ASY=Math.round((AH-AFH)/2)+10;
+  AW = maxW; AH = Math.round(maxW * 0.38);
+  animCanvas.width = AW; animCanvas.height = AH;
+  AFW = Math.round(AW * 0.055); AFH = Math.round(AFW * 2.6);
+  AGAP = Math.round((AW - AFW * TOTAL) / (TOTAL + 1)); ASX = AGAP;
+  ASY = Math.round((AH - AFH) / 2) + 10;
 }
 
-function drawFig(x,y,w,h,color,alpha){
-  animCtx.save();animCtx.globalAlpha=alpha;animCtx.fillStyle=color;
-  const hr=w*0.42,cx=x+w/2,cy=y+hr;
-  animCtx.beginPath();animCtx.arc(cx,cy,hr,0,Math.PI*2);animCtx.fill();
-  const bt=cy+hr+h*0.04,bb=y+h,bw=w*0.85,bx=x+(w-bw)/2;
+function drawFig(x, y, w, h, color, alpha) {
+  animCtx.save(); animCtx.globalAlpha = alpha; animCtx.fillStyle = color;
+  const hr = w * 0.42, cx = x + w / 2, cy = y + hr;
+  animCtx.beginPath(); animCtx.arc(cx, cy, hr, 0, Math.PI * 2); animCtx.fill();
+  const bt = cy + hr + h * 0.04, bb = y + h, bw = w * 0.85, bx = x + (w - bw) / 2;
   animCtx.beginPath();
-  animCtx.moveTo(bx+bw*0.15,bt);animCtx.lineTo(bx+bw*0.85,bt);
-  animCtx.quadraticCurveTo(bx+bw,bt,bx+bw,bt+(bb-bt)*0.15);
-  animCtx.lineTo(bx+bw,bb-6);animCtx.quadraticCurveTo(bx+bw,bb,bx+bw-6,bb);
-  animCtx.lineTo(bx+6,bb);animCtx.quadraticCurveTo(bx,bb,bx,bb-6);
-  animCtx.lineTo(bx,bt+(bb-bt)*0.15);animCtx.quadraticCurveTo(bx,bt,bx+bw*0.15,bt);
-  animCtx.fill();animCtx.restore();
+  animCtx.moveTo(bx + bw * 0.15, bt); animCtx.lineTo(bx + bw * 0.85, bt);
+  animCtx.quadraticCurveTo(bx + bw, bt, bx + bw, bt + (bb - bt) * 0.15);
+  animCtx.lineTo(bx + bw, bb - 6); animCtx.quadraticCurveTo(bx + bw, bb, bx + bw - 6, bb);
+  animCtx.lineTo(bx + 6, bb); animCtx.quadraticCurveTo(bx, bb, bx, bb - 6);
+  animCtx.lineTo(bx, bt + (bb - bt) * 0.15); animCtx.quadraticCurveTo(bx, bt, bx + bw * 0.15, bt);
+  animCtx.fill(); animCtx.restore();
 }
-function drawGlow(x,y,w,h,color,alpha,gr){
-  if(gr>0&&alpha>0.1){animCtx.save();animCtx.globalAlpha=alpha*0.35;animCtx.shadowColor=color;animCtx.shadowBlur=gr;drawFig(x,y,w,h,color,1);animCtx.restore();}
-  drawFig(x,y,w,h,color,alpha);
+function drawGlow(x, y, w, h, color, alpha, gr) {
+  if (gr > 0 && alpha > 0.1) { animCtx.save(); animCtx.globalAlpha = alpha * 0.35; animCtx.shadowColor = color; animCtx.shadowBlur = gr; drawFig(x, y, w, h, color, 1); animCtx.restore(); }
+  drawFig(x, y, w, h, color, alpha);
 }
 
-function buildPixels(fi){
-  const fx=ASX+fi*(AFW+AGAP);
-  const ps=Math.max(2,AFW*0.12);
-  const cols=Math.ceil(AFW/ps),rows=Math.ceil(AFH/ps);
-  const off=document.createElement('canvas');off.width=AFW+4;off.height=AFH+4;
-  const oc=off.getContext('2d');oc.fillStyle=ACCENT;
-  const hr=AFW*0.42,cx=2+AFW/2,cy=2+hr;
-  oc.beginPath();oc.arc(cx,cy,hr,0,Math.PI*2);oc.fill();
-  const bt=cy+hr+AFH*0.04,bb=2+AFH,bw=AFW*0.85,bx=2+(AFW-bw)/2;
-  oc.beginPath();oc.moveTo(bx+bw*0.15,bt);oc.lineTo(bx+bw*0.85,bt);
-  oc.quadraticCurveTo(bx+bw,bt,bx+bw,bt+(bb-bt)*0.15);
-  oc.lineTo(bx+bw,bb-6);oc.quadraticCurveTo(bx+bw,bb,bx+bw-6,bb);
-  oc.lineTo(bx+6,bb);oc.quadraticCurveTo(bx,bb,bx,bb-6);
-  oc.lineTo(bx,bt+(bb-bt)*0.15);oc.quadraticCurveTo(bx,bt,bx+bw*0.15,bt);oc.fill();
-  const imgD=oc.getImageData(0,0,off.width,off.height);
-  const pixels=[];
-  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
-    const px=Math.round(c*ps+ps/2)+2,py=Math.round(r*ps+ps/2)+2;
-    if(px<imgD.width&&py<imgD.height&&imgD.data[(py*imgD.width+px)*4+3]>128)
-      pixels.push({tx:fx+c*ps,ty:ASY+r*ps,x:fx+c*ps+(Math.random()-0.5)*AW*0.5,y:ASY+r*ps+(Math.random()-0.5)*AH*0.8,size:ps});
+function buildPixels(fi) {
+  const fx = ASX + fi * (AFW + AGAP);
+  const ps = Math.max(2, AFW * 0.12);
+  const cols = Math.ceil(AFW / ps), rows = Math.ceil(AFH / ps);
+  const off = document.createElement('canvas'); off.width = AFW + 4; off.height = AFH + 4;
+  const oc = off.getContext('2d'); oc.fillStyle = ACCENT;
+  const hr = AFW * 0.42, cx = 2 + AFW / 2, cy = 2 + hr;
+  oc.beginPath(); oc.arc(cx, cy, hr, 0, Math.PI * 2); oc.fill();
+  const bt = cy + hr + AFH * 0.04, bb = 2 + AFH, bw = AFW * 0.85, bx = 2 + (AFW - bw) / 2;
+  oc.beginPath(); oc.moveTo(bx + bw * 0.15, bt); oc.lineTo(bx + bw * 0.85, bt);
+  oc.quadraticCurveTo(bx + bw, bt, bx + bw, bt + (bb - bt) * 0.15);
+  oc.lineTo(bx + bw, bb - 6); oc.quadraticCurveTo(bx + bw, bb, bx + bw - 6, bb);
+  oc.lineTo(bx + 6, bb); oc.quadraticCurveTo(bx, bb, bx, bb - 6);
+  oc.lineTo(bx, bt + (bb - bt) * 0.15); oc.quadraticCurveTo(bx, bt, bx + bw * 0.15, bt); oc.fill();
+  const imgD = oc.getImageData(0, 0, off.width, off.height);
+  const pixels = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const px = Math.round(c * ps + ps / 2) + 2, py = Math.round(r * ps + ps / 2) + 2;
+    if (px < imgD.width && py < imgD.height && imgD.data[(py * imgD.width + px) * 4 + 3] > 128)
+      pixels.push({ tx: fx + c * ps, ty: ASY + r * ps, x: fx + c * ps + (Math.random() - 0.5) * AW * 0.5, y: ASY + r * ps + (Math.random() - 0.5) * AH * 0.8, size: ps });
   }
   return pixels;
 }
 
-const flickerOrder=[3,0,5,1,6,4,2];
-const fDur=0.25,fGap=0.22;
-function animEase(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+const flickerOrder = [3, 0, 5, 1, 6, 4, 2];
+const fDur = 0.25, fGap = 0.22;
+function animEase(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
 
-function startAnimation(){
+function startAnimation() {
   animSizing();
-  const msg=document.getElementById('msg');
-  msg.classList.remove('visible');msg.style.opacity='0';textShown=false;
-  formingPixels=[];
-  for(let i=0;i<TOTAL;i++)formingPixels.push(buildPixels(i));
-  animStart=performance.now();
-  if(animAF)cancelAnimationFrame(animAF);
+  const msg = document.getElementById('msg');
+  msg.classList.remove('visible'); msg.style.opacity = '0'; textShown = false;
+  formingPixels = [];
+  for (let i = 0; i < TOTAL; i++) formingPixels.push(buildPixels(i));
+  animStart = performance.now();
+  if (animAF) cancelAnimationFrame(animAF);
   runAnim();
 }
 
-function runAnim(){
-  const el=(performance.now()-animStart)/1000;
-  animCtx.fillStyle=BG;animCtx.fillRect(0,0,AW,AH);
+function runAnim() {
+  const el = (performance.now() - animStart) / 1000;
+  animCtx.fillStyle = BG; animCtx.fillRect(0, 0, AW, AH);
 
-  if(el<1.5){
-    const t=animEase(Math.min(el/1.5,1));
-    for(let i=0;i<TOTAL;i++)for(const p of formingPixels[i]){
-      animCtx.globalAlpha=0.3+0.7*t;animCtx.fillStyle=ACCENT;
-      animCtx.fillRect(p.x+(p.tx-p.x)*t,p.y+(p.ty-p.y)*t,p.size,p.size);
+  if (el < 1.5) {
+    const t = animEase(Math.min(el / 1.5, 1));
+    for (let i = 0; i < TOTAL; i++) for (const p of formingPixels[i]) {
+      animCtx.globalAlpha = 0.3 + 0.7 * t; animCtx.fillStyle = ACCENT;
+      animCtx.fillRect(p.x + (p.tx - p.x) * t, p.y + (p.ty - p.y) * t, p.size, p.size);
     }
-    animCtx.globalAlpha=1;
-  } else if(el<2.0){
-    for(let i=0;i<TOTAL;i++){
-      const pulse=0.92+0.08*Math.sin(el*3+i*0.7);
-      drawGlow(ASX+i*(AFW+AGAP),ASY,AFW,AFH,ACCENT,pulse,10);
+    animCtx.globalAlpha = 1;
+  } else if (el < 2.0) {
+    for (let i = 0; i < TOTAL; i++) {
+      const pulse = 0.92 + 0.08 * Math.sin(el * 3 + i * 0.7);
+      drawGlow(ASX + i * (AFW + AGAP), ASY, AFW, AFH, ACCENT, pulse, 10);
     }
-  } else if(el<4.0){
-    const dt=el-2.0;
-    const fs=new Array(TOTAL).fill(1);
-    for(let k=0;k<FLICKER_COUNT;k++){
-      const fi=flickerOrder[k%flickerOrder.length],lt=(dt-k*fGap)/fDur;
-      if(lt>=0&&lt<1) fs[fi]=Math.sin(lt*Math.PI*8)*0.5*(1-animEase(lt))+0.5*(1-animEase(lt));
-      else if(lt>=1) fs[fi]=0;
+  } else if (el < 4.0) {
+    const dt = el - 2.0;
+    const fs = new Array(TOTAL).fill(1);
+    for (let k = 0; k < FLICKER_COUNT; k++) {
+      const fi = flickerOrder[k % flickerOrder.length], lt = (dt - k * fGap) / fDur;
+      if (lt >= 0 && lt < 1) fs[fi] = Math.sin(lt * Math.PI * 8) * 0.5 * (1 - animEase(lt)) + 0.5 * (1 - animEase(lt));
+      else if (lt >= 1) fs[fi] = 0;
     }
-    for(let i=0;i<TOTAL;i++){
-      const fx=ASX+i*(AFW+AGAP);
-      if(i>=FLICKER_COUNT) drawGlow(fx,ASY,AFW,AFH,ACCENT,0.92+0.08*Math.sin(el*3+i*0.7),10);
-      else{
-        const s=fs[i];
-        if(s<=0) drawFig(fx,ASY,AFW,AFH,DEAD,0.5);
-        else if(s>=0.95) drawGlow(fx,ASY,AFW,AFH,ACCENT,0.95,10);
-        else drawGlow(fx,ASY,AFW,AFH,ACCENT,s,s*14);
+    for (let i = 0; i < TOTAL; i++) {
+      const fx = ASX + i * (AFW + AGAP);
+      if (i >= FLICKER_COUNT) drawGlow(fx, ASY, AFW, AFH, ACCENT, 0.92 + 0.08 * Math.sin(el * 3 + i * 0.7), 10);
+      else {
+        const s = fs[i];
+        if (s <= 0) drawFig(fx, ASY, AFW, AFH, DEAD, 0.5);
+        else if (s >= 0.95) drawGlow(fx, ASY, AFW, AFH, ACCENT, 0.95, 10);
+        else drawGlow(fx, ASY, AFW, AFH, ACCENT, s, s * 14);
       }
     }
   } else {
-    for(let i=0;i<FLICKER_COUNT;i++) drawFig(ASX+i*(AFW+AGAP),ASY,AFW,AFH,DEAD,0.5);
-    for(let i=FLICKER_COUNT;i<TOTAL;i++) drawGlow(ASX+i*(AFW+AGAP),ASY,AFW,AFH,ACCENT,0.92+0.08*Math.sin(el*3+i*0.7),10);
-    if(el>4.3&&!textShown){
-      textShown=true;
-      const msg=document.getElementById('msg');msg.style.opacity='';void msg.offsetHeight;msg.classList.add('visible');
+    for (let i = 0; i < FLICKER_COUNT; i++) drawFig(ASX + i * (AFW + AGAP), ASY, AFW, AFH, DEAD, 0.5);
+    for (let i = FLICKER_COUNT; i < TOTAL; i++) drawGlow(ASX + i * (AFW + AGAP), ASY, AFW, AFH, ACCENT, 0.92 + 0.08 * Math.sin(el * 3 + i * 0.7), 10);
+    if (el > 4.3 && !textShown) {
+      textShown = true;
+      const msg = document.getElementById('msg'); msg.style.opacity = ''; void msg.offsetHeight; msg.classList.add('visible');
     }
   }
-  animAF=requestAnimationFrame(runAnim);
+  animAF = requestAnimationFrame(runAnim);
 }
 
 // =========================================
-// UPDATE STORY FOR STATE
+// UPDATE STORY (from naep.json — no state data file needed)
 // =========================================
-function updateStory(){
-  if(!stateData)return;
-  const n=stateData.naep;
-  TOTAL=n.denominator||10;
-  FLICKER_COUNT=n.numerator||7;
-  document.getElementById('numText').textContent=n.numerator;
-  document.getElementById('denomText').textContent=n.denominator;
-  document.getElementById('stateLabel').textContent=stateData.stateName;
+function updateStoryFromNaep(code) {
+  if (!naepData) return;
+  const entry = code ? naepData.states[code] : naepData.national.US;
+  if (!entry) return;
+  TOTAL = entry.denominator || 10;
+  FLICKER_COUNT = entry.numerator || 7;
+  document.getElementById('numText').textContent = entry.numerator;
+  document.getElementById('denomText').textContent = entry.denominator;
+  document.getElementById('stateLabel').textContent = code ? (STATE_NAMES[code] || code) : 'American';
   startAnimation();
 }
 
 // =========================================
-// CONTROLS
-// =========================================
-document.querySelectorAll('.toolbar button[data-layer]').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    document.querySelectorAll('.toolbar button[data-layer]').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');currentLayer=btn.dataset.layer;
-    renderPoints();resolveLabels();
-  });
-});
-document.getElementById('stateSelector').addEventListener('change',async e=>{
-  geoZoomPending = false; // cancel any pending auto geo-zoom
-  currentState=e.target.value;
-  await loadStateData(currentState);
-  pointsLayer.innerHTML='';pointElements=[]; // clear old state's points
-  updateStory();
-  zoomToState(currentState,true);
-  // Update "My area" button for new state
-  if (geoResult) {
-    const nearest = findNearestCity(geoResult.lat, geoResult.lon);
-    const btn = document.getElementById('myAreaBtn');
-    if (nearest) {
-      geoNearestCity = nearest;
-      geoNearestSchool = findNearestSchool(nearest);
-      setupMyAreaButton(nearest);
-    } else {
-      geoNearestCity = null;
-      geoNearestSchool = null;
-      btn.style.display = 'none';
-    }
-  }
-});
-document.getElementById('resetBtn').addEventListener('click',()=>{
-  resetZoom(true);
-});
-
-// =========================================
 // INIT
 // =========================================
-async function init(){
-  // Fire geolocation in parallel with topology loading (no added latency)
+async function init() {
   const geoPromise = getGeoLocation();
 
-  await loadTopology();
+  await Promise.all([loadTopology(), loadNaep()]);
 
-  // Try to auto-select the user's state from IP before loading any state data
-  let geoSettled = false;
+  // Show US map with national stats initially
+  renderMap(null);
+  updateStoryFromNaep(null);
+
+  // IP geolocation — detect state, highlight it
   try {
     const geo = await Promise.race([geoPromise, new Promise(r => setTimeout(() => r(null), 2000))]);
-    geoResult = geo;
     if (geo && geo.region && FIPS[geo.region]) {
-      currentState = geo.region;
-      document.getElementById('stateSelector').value = currentState;
+      selectState(geo.region);
     }
-    geoSettled = true;
   } catch {}
 
-  await loadStateData(currentState);
-  renderMap(FIPS[currentState]);
-  renderPoints();
-  resolveLabels();
-  updateStory();
-  setTimeout(()=>zoomToState(currentState,true),600);
+  initLocationBtn();
 
-  // Initialize "Use my location" button
-  initPreciseLocationBtn();
-
-  // After state zoom animation settles, try geo-zoom to nearest city
-  const finalizeGeo = (geo) => {
-    if (!geo) return;
-    geoResult = geo;
-    const nearest = findNearestCity(geo.lat, geo.lon);
-    if (!nearest) return;
-    geoNearestCity = nearest;
-    geoNearestSchool = findNearestSchool(nearest);
-    setupMyAreaButton(nearest);
-    setTimeout(() => {
-      if (geoZoomPending && userZoomLevel <= 1.05) {
-        zoomToCity(nearest);
-      }
-    }, 2500);
-  };
-
-  if (geoSettled && geoResult) {
-    finalizeGeo(geoResult);
-  } else {
-    // IP lookup was slow — handle when it resolves
-    geoPromise.then(finalizeGeo).catch(() => {});
-  }
-
-  window.addEventListener('resize',()=>{
-    displayScale=wrapper.clientWidth/975;
-    renderMap(FIPS[currentState]);
-    repositionPoints();
-    resolveLabels();
+  window.addEventListener('resize', () => {
+    displayScale = wrapper.clientWidth / 975;
+    renderMap(currentState ? FIPS[currentState] : null);
     animSizing();
   });
 }
