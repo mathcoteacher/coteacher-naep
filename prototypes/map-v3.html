@@ -386,14 +386,18 @@ function buildExploreHref(state, lat, lon, city) {
 }
 
 function extractLocationLabel(geo) {
-  if (geo.localityInfo && geo.localityInfo.informative) {
-    const candidates = geo.localityInfo.informative
-      .filter(e => e.order != null && e.order >= 4 && e.name && !ADMIN_PATTERN.test(e.name.trim()))
-      .sort((a, b) => (b.order || 0) - (a.order || 0));
+  // 1. locality — often the actual city name (e.g. "Canal Winchester")
+  if (geo.locality && geo.locality.trim() && !ADMIN_PATTERN.test(geo.locality.trim())) return geo.locality.trim();
+  // 2. city — sometimes set to township/county, so filter admin names
+  if (geo.city && geo.city.trim() && !ADMIN_PATTERN.test(geo.city.trim())) return geo.city.trim();
+  // 3. administrative entries at city level (adminLevel >= 8)
+  if (geo.localityInfo && geo.localityInfo.administrative) {
+    const candidates = geo.localityInfo.administrative
+      .filter(e => e.adminLevel != null && e.adminLevel >= 8 && e.name && !ADMIN_PATTERN.test(e.name.trim()))
+      .sort((a, b) => (b.adminLevel || 0) - (a.adminLevel || 0));
     if (candidates.length > 0) return candidates[0].name;
   }
-  if (geo.city && geo.city.trim()) return geo.city.trim();
-  if (geo.locality && geo.locality.trim() && !ADMIN_PATTERN.test(geo.locality.trim())) return geo.locality.trim();
+  // 4. Last resort: state name
   if (geo.principalSubdivision && geo.principalSubdivision.trim()) return geo.principalSubdivision.trim();
   return '';
 }

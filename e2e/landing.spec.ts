@@ -113,23 +113,28 @@ test.describe("Geolocation Label State Transitions", () => {
     // Block IP geo
     await page.route("**/ipapi.co/**", (route) => route.abort());
 
-    // Mock BigDataCloud reverse geocoding (Canal Winchester fixture)
+    // Mock BigDataCloud reverse geocoding (real Canal Winchester API response)
     await page.route("**/api.bigdatacloud.net/**", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          city: "",
-          locality: "Township of Madison",
+          city: "Township of Madison",
+          locality: "Canal Winchester",
           principalSubdivision: "Ohio",
           principalSubdivisionCode: "US-OH",
           localityInfo: {
+            administrative: [
+              { name: "Ohio", order: 6, adminLevel: 4 },
+              { name: "Fairfield County", order: 7, adminLevel: 6 },
+              { name: "Township of Madison", order: 8, adminLevel: 7 },
+              { name: "Canal Winchester", order: 12, adminLevel: 8 },
+            ],
             informative: [
-              {
-                name: "Canal Winchester",
-                order: 5,
-                description: "populated place",
-              },
+              { name: "Central Lowlands", order: 4 },
+              { name: "America/New_York", description: "time zone", order: 5 },
+              { name: "43110", description: "postal code", order: 9 },
+              { name: "39-045-80206", description: "FIPS code", order: 11 },
             ],
           },
         }),
@@ -184,23 +189,28 @@ test.describe("Geolocation Label State Transitions", () => {
   test("manual state click after GPS resets to state-only label", async ({
     page,
   }) => {
-    // Mock BigDataCloud
+    // Mock BigDataCloud (real Canal Winchester API response)
     await page.route("**/api.bigdatacloud.net/**", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          city: "",
-          locality: "Township of Madison",
+          city: "Township of Madison",
+          locality: "Canal Winchester",
           principalSubdivision: "Ohio",
           principalSubdivisionCode: "US-OH",
           localityInfo: {
+            administrative: [
+              { name: "Ohio", order: 6, adminLevel: 4 },
+              { name: "Fairfield County", order: 7, adminLevel: 6 },
+              { name: "Township of Madison", order: 8, adminLevel: 7 },
+              { name: "Canal Winchester", order: 12, adminLevel: 8 },
+            ],
             informative: [
-              {
-                name: "Canal Winchester",
-                order: 5,
-                description: "populated place",
-              },
+              { name: "Central Lowlands", order: 4 },
+              { name: "America/New_York", description: "time zone", order: 5 },
+              { name: "43110", description: "postal code", order: 9 },
+              { name: "39-045-80206", description: "FIPS code", order: 11 },
             ],
           },
         }),

@@ -32,7 +32,7 @@ export interface BigDataCloudResponse {
   principalSubdivision?: string;
   principalSubdivisionCode?: string;
   localityInfo?: {
-    administrative?: Array<{ name: string; order?: number; description?: string }>;
+    administrative?: Array<{ name: string; order?: number; adminLevel?: number; description?: string }>;
     informative?: Array<{ name: string; order?: number; description?: string }>;
   };
 }
@@ -40,41 +40,44 @@ export interface BigDataCloudResponse {
 /**
  * Extract a human-friendly location label from a BigDataCloud reverse-geocode response.
  *
- * Priority (per Codex review):
- * 1. localityInfo.informative entries with order >= 4 that are NOT admin names
- * 2. city (if populated)
- * 3. locality (only if it doesn't match admin patterns)
+ * Priority:
+ * 1. locality (often the actual city, e.g. "Canal Winchester")
+ * 2. city (sometimes set to township — filtered by admin pattern)
+ * 3. administrative entries at city level (adminLevel >= 8)
  * 4. principalSubdivision (state name) as last resort
+ *
+ * NOTE: localityInfo.informative is NOT used — it contains FIPS codes,
+ * postal codes, and timezone names, not city names.
  */
 export function extractLocationLabel(geo: BigDataCloudResponse): string {
-  // 1. Check informative entries for human place names
-  if (geo.localityInfo?.informative) {
-    const candidates = geo.localityInfo.informative
+  // 1. locality — often the actual city name
+  if (geo.locality?.trim() && !ADMIN_PATTERN.test(geo.locality.trim())) {
+    return geo.locality.trim();
+  }
+
+  // 2. city — sometimes set to township/county, so filter admin names
+  if (geo.city?.trim() && !ADMIN_PATTERN.test(geo.city.trim())) {
+    return geo.city.trim();
+  }
+
+  // 3. administrative entries at city level (adminLevel >= 8)
+  if (geo.localityInfo?.administrative) {
+    const candidates = geo.localityInfo.administrative
       .filter(
         (e) =>
-          e.order != null &&
-          e.order >= 4 &&
+          e.adminLevel != null &&
+          e.adminLevel >= 8 &&
           e.name &&
           !ADMIN_PATTERN.test(e.name.trim())
       )
-      .sort((a, b) => (b.order ?? 0) - (a.order ?? 0));
+      .sort((a, b) => (b.adminLevel ?? 0) - (a.adminLevel ?? 0));
     if (candidates.length > 0) {
       return candidates[0].name;
     }
   }
 
-  // 2. Fall back to city if populated
-  if (geo.city && geo.city.trim()) {
-    return geo.city.trim();
-  }
-
-  // 3. Fall back to locality if it doesn't match admin patterns
-  if (geo.locality && geo.locality.trim() && !ADMIN_PATTERN.test(geo.locality.trim())) {
-    return geo.locality.trim();
-  }
-
   // 4. Last resort: state name
-  if (geo.principalSubdivision && geo.principalSubdivision.trim()) {
+  if (geo.principalSubdivision?.trim()) {
     return geo.principalSubdivision.trim();
   }
 
