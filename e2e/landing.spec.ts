@@ -171,22 +171,22 @@ async function mockCanalWinchesterGps(page: Page) {
 // ============================================================
 
 test.describe("Page Structure & CTAs", () => {
-  test('primary CTA "Math CoTeacher is a solution" exists inside .story-side', async ({
+  test('primary CTA "Math CoTeacher is the solution" exists inside .story-side', async ({
     page,
   }) => {
     await page.goto("/");
     const cta = page.locator(".story-side .cta-button");
     await expect(cta).toBeVisible();
-    await expect(cta).toContainText("Math CoTeacher");
+    await expect(cta).toHaveText("Math CoTeacher is the solution");
   });
 
-  test('"Explore the data" exists inside .map-side with .explore-link class', async ({
+  test('"Explore the map" exists inside .map-side with .explore-link class', async ({
     page,
   }) => {
     await page.goto("/");
     const explore = page.locator(".map-side .explore-link");
     await expect(explore).toBeVisible();
-    await expect(explore).toContainText("Explore");
+    await expect(explore).toContainText("Explore the map");
   });
 
   test('"Explore the data" does NOT have .cta-button class (secondary styling)', async ({
@@ -196,6 +196,60 @@ test.describe("Page Structure & CTAs", () => {
     const explore = page.locator(".map-side .explore-link");
     // It should NOT also have the cta-button class
     await expect(explore).not.toHaveClass(/cta-button/);
+  });
+
+  test("desktop: Use my location is above map and Explore the map is centered below map", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await page.goto("/");
+    await expect(page.locator("#locBtn")).toBeVisible();
+
+    const box = await page.evaluate(() => {
+      const mapRect = document.getElementById("mapWrapper")?.getBoundingClientRect();
+      const locRect = document.getElementById("locBtn")?.getBoundingClientRect();
+      const exploreRect = document.getElementById("exploreBtn")?.getBoundingClientRect();
+      if (!mapRect || !locRect || !exploreRect) return null;
+      return {
+        map: { left: mapRect.left, top: mapRect.top, width: mapRect.width, height: mapRect.height, bottom: mapRect.bottom },
+        loc: { bottom: locRect.bottom },
+        explore: { left: exploreRect.left, width: exploreRect.width, top: exploreRect.top }
+      };
+    });
+
+    expect(box).not.toBeNull();
+    expect(box!.loc.bottom).toBeLessThan(box!.map.top + 2);
+    expect(box!.explore.top).toBeGreaterThan(box!.map.bottom - 2);
+    const mapCenterX = box!.map.left + box!.map.width / 2;
+    const exploreCenterX = box!.explore.left + box!.explore.width / 2;
+    expect(Math.abs(exploreCenterX - mapCenterX)).toBeLessThan(6);
+  });
+
+  test("mobile: Use my location is above map and Explore the map is centered below map", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await expect(page.locator("#locBtn")).toBeVisible();
+
+    const box = await page.evaluate(() => {
+      const mapRect = document.getElementById("mapWrapper")?.getBoundingClientRect();
+      const locRect = document.getElementById("locBtn")?.getBoundingClientRect();
+      const exploreRect = document.getElementById("exploreBtn")?.getBoundingClientRect();
+      if (!mapRect || !locRect || !exploreRect) return null;
+      return {
+        map: { left: mapRect.left, top: mapRect.top, width: mapRect.width, height: mapRect.height, bottom: mapRect.bottom },
+        loc: { bottom: locRect.bottom },
+        explore: { left: exploreRect.left, width: exploreRect.width, top: exploreRect.top }
+      };
+    });
+
+    expect(box).not.toBeNull();
+    expect(box!.loc.bottom).toBeLessThan(box!.map.top + 2);
+    expect(box!.explore.top).toBeGreaterThan(box!.map.bottom - 2);
+    const mapCenterX = box!.map.left + box!.map.width / 2;
+    const exploreCenterX = box!.explore.left + box!.explore.width / 2;
+    expect(Math.abs(exploreCenterX - mapCenterX)).toBeLessThan(6);
   });
 });
 
@@ -266,7 +320,7 @@ test.describe("Geolocation Label State Transitions", () => {
     expect(label).toBe("Ohio");
   });
 
-  test("GPS geolocation updates headline to city + state with city-level proficiency", async ({
+  test("GPS geolocation updates headline to city-only with city-level proficiency", async ({
     page,
   }) => {
     // Block IP geo
@@ -338,11 +392,11 @@ test.describe("Geolocation Label State Transitions", () => {
 
     // Verify button text
     const btnText = await locBtn.textContent();
-    expect(btnText).toBe("My location: Canal Winchester, Ohio");
+    expect(btnText).toBe("My location: Canal Winchester");
 
-    // Verify headline uses city + state
+    // Verify headline uses city only
     const label = await page.locator("#stateLabel").textContent();
-    expect(label).toBe("Canal Winchester, Ohio");
+    expect(label).toBe("Canal Winchester");
 
     // Verify city-level proficiency numbers (Canal Winchester = 0.615 → 4 out of 10)
     const numText = await page.locator("#numText").textContent();

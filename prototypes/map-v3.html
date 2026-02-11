@@ -45,8 +45,9 @@
     .experience { flex-direction: column; }
     .map-side { flex: none; }
     .story-side { flex: none; padding: 1rem; order: -1; }
-    .toolbar { order: 2; }
-    .map-wrapper { order: 1; }
+    .toolbar { order: 1; }
+    .map-wrapper { order: 2; }
+    .explore-link { order: 3; }
   }
 
   /* === Toolbar (minimal on landing) === */
@@ -189,7 +190,7 @@
       <canvas id="mapCanvas" width="975" height="610"></canvas>
       <div id="pinLayer"></div>
     </div>
-    <a id="exploreBtn" href="/explore.html" class="explore-link">Explore the data &rarr;</a>
+    <a id="exploreBtn" href="/explore.html" class="explore-link">Explore the map &rarr;</a>
   </div>
 
   <!-- Right: Story -->
@@ -199,7 +200,7 @@
     </div>
     <div class="message" id="msg">
       <div class="headline"><span class="num" id="numText">3</span> out of <span class="num" id="denomText">4</span> <span id="stateLabel">American</span> 8th graders are looking at a lifetime of lost potential because they are below proficient in math.</div>
-      <a href="#solution" class="cta-button">Math CoTeacher is a solution</a>
+      <a href="#solution" class="cta-button">Math CoTeacher is the solution</a>
     </div>
   </div>
 </div>
@@ -476,7 +477,7 @@ function proficiencyToFraction(proficiency) {
 
 // selectState is called from: map click (manual), IP geo, GPS geo
 // Manual and IP calls pass no locationLabel → headline uses state name
-// GPS calls pass locationLabel → headline uses "City, State"
+// GPS calls pass locationLabel → headline uses "City" (or state fallback)
 // customNumerator/customDenominator override NAEP when provided (city-level data)
 function selectState(code, locationLabel, customNumerator, customDenominator) {
   currentState = code;
@@ -535,8 +536,8 @@ function initLocationBtn() {
           }
         } catch {}
         if (detectedState) {
-          // Build "City, State" label for headline
-          const locationLabel = cityName && stateName ? `${cityName}, ${stateName}` : (stateName || cityName);
+          // Use city-only headline label when available; otherwise fall back to state.
+          const locationLabel = cityName || stateName;
           // Try to fetch city-level proficiency data
           let customNum = null, customDen = null;
           let pinPoint = null;
@@ -571,8 +572,8 @@ function initLocationBtn() {
           updateExploreLink(lat, lon, cityName);
           if (pinPoint) setPin(pinPoint.x, pinPoint.y, pinLabel || cityName || stateName || '');
           else clearPin();
-          // Update button text with city + state
-          const displayName = cityName && stateName ? `${cityName}, ${stateName}` : (cityName || stateName);
+          // Use city-only button label when available; otherwise state fallback.
+          const displayName = cityName || stateName;
           btn.textContent = displayName ? `My location: ${displayName}` : 'Use my location';
         } else {
           clearPin();
@@ -739,7 +740,7 @@ function runAnim() {
 // =========================================
 // locationLabel: optional override for the headline label.
 // - IP/manual: not provided → uses state name (e.g. "Ohio")
-// - GPS: provided as "City, State" (e.g. "Canal Winchester, Ohio")
+// - GPS: provided as city only when available (e.g. "Canal Winchester")
 // customNumerator/customDenominator: optional city-level overrides
 function updateStoryFromNaep(code, locationLabel, customNumerator, customDenominator) {
   if (!naepData) return;
