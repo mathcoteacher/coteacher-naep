@@ -190,7 +190,6 @@
       <canvas id="mapCanvas" width="975" height="610"></canvas>
       <div id="pinLayer"></div>
     </div>
-    <a id="exploreBtn" href="/explore.html" class="explore-link">Explore the map &rarr;</a>
   </div>
 
   <!-- Right: Story -->
@@ -489,6 +488,7 @@ function selectState(code, locationLabel, customNumerator, customDenominator) {
 
 function updateExploreLink(lat, lon, city) {
   const btn = document.getElementById('exploreBtn');
+  if (!btn) return;
   btn.href = buildExploreHref(currentState, lat, lon, city);
 }
 
