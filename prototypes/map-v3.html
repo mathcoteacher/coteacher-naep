@@ -510,7 +510,7 @@ wrapper.addEventListener('wheel',function(e){
   // Adjust zoom level (normalize deltaMode)
   let dy=e.deltaY;
   if(e.deltaMode===1)dy*=20;
-  const newLevel=Math.max(1,Math.min(8,userZoomLevel*(1-dy*0.002)));
+  const newLevel=Math.max(1,Math.min(20,userZoomLevel*(1-dy*0.002)));
   if(Math.abs(newLevel-userZoomLevel)<0.001)return;
   userZoomLevel=newLevel;
 
@@ -657,7 +657,7 @@ wrapper.addEventListener('touchmove',function(e){
     const mapX=(cx-zoomTx)/zoomScale;
     const mapY=(cy-zoomTy)/zoomScale;
 
-    userZoomLevel=Math.max(1,Math.min(8,touchStartZoom*ratio));
+    userZoomLevel=Math.max(1,Math.min(20,touchStartZoom*ratio));
     targetZoomScale=baseScale*userZoomLevel;
     targetZoomTx=cx-mapX*targetZoomScale;
     targetZoomTy=cy-mapY*targetZoomScale;
@@ -745,7 +745,7 @@ document.getElementById('zoomInBtn').addEventListener('click',function(e){
   // Zoom centered on viewport middle
   const cx=975/2, cy=610/2;
   const mapX=(cx-zoomTx)/zoomScale, mapY=(cy-zoomTy)/zoomScale;
-  userZoomLevel=Math.min(8,userZoomLevel*1.5);
+  userZoomLevel=Math.min(20,userZoomLevel*1.5);
   targetZoomScale=baseScale*userZoomLevel;
   targetZoomTx=cx-mapX*targetZoomScale;
   targetZoomTy=cy-mapY*targetZoomScale;
@@ -768,6 +768,49 @@ document.getElementById('zoomOutBtn').addEventListener('click',function(e){
   clampPanBounds();
   if(!smoothZoomRAF)smoothZoomLoop();
   updateZoomUI();
+});
+
+// =========================================
+// CLICK STATE TO ZOOM
+// =========================================
+function pointInPoly(x,y,ring){
+  let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
+    if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi) inside=!inside;
+  }
+  return inside;
+}
+let clickStartX=0,clickStartY=0;
+wrapper.addEventListener('mousedown',function(e){clickStartX=e.clientX;clickStartY=e.clientY;},true);
+mapCanvas.addEventListener('click',async function(e){
+  if(Math.abs(e.clientX-clickStartX)>5||Math.abs(e.clientY-clickStartY)>5)return;
+  const rect=wrapper.getBoundingClientRect();
+  const mx=((e.clientX-rect.left)/displayScale-zoomTx)/zoomScale;
+  const my=((e.clientY-rect.top)/displayScale-zoomTy)/zoomScale;
+  const avail=[...document.getElementById('stateSelector').options].map(o=>o.value);
+  for(const f of stateFeatures){
+    const code=Object.keys(FIPS).find(k=>FIPS[k]===f.id);
+    if(!code||!avail.includes(code))continue;
+    const polys=f.type==='MultiPolygon'?f.coordinates:[f.coordinates];
+    for(const poly of polys){
+      if(pointInPoly(mx,my,poly[0])){
+        currentState=code;
+        document.getElementById('stateSelector').value=code;
+        await loadStateData(currentState);
+        pointsLayer.innerHTML='';pointElements=[];
+        updateStory();
+        zoomToState(currentState,true);
+        if(geoResult){
+          const nearest=findNearestCity(geoResult.lat,geoResult.lon);
+          const btn=document.getElementById('myAreaBtn');
+          if(nearest){geoNearestCity=nearest;geoNearestSchool=findNearestSchool(nearest);setupMyAreaButton(nearest);}
+          else{geoNearestCity=null;geoNearestSchool=null;btn.style.display='none';}
+        }
+        return;
+      }
+    }
+  }
 });
 
 // =========================================
@@ -955,7 +998,7 @@ function renderPoints(){
   if(!stateData)return;
   prevDotTier = getDotTier();
   const pts = getVisiblePoints();
-  const showLabels=currentLayer!=='schools';
+  const showLabels=true;
   const dotSize=currentLayer==='schools'?5:currentLayer==='districts'?7:9;
   const wW=wrapper.clientWidth,wH=wrapper.clientHeight;
 
@@ -1026,7 +1069,6 @@ function repositionPoints(){
 // LABEL COLLISION DETECTION
 // =========================================
 function resolveLabels(){
-  if(currentLayer==='schools')return;
   const wW=wrapper.clientWidth,wH=wrapper.clientHeight;
   const placed=[]; // bounding boxes of placed labels
   // pointElements is already sorted by priority (schoolCount desc)
