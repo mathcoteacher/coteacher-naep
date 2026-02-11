@@ -237,6 +237,8 @@ const DEAD = isDark ? '#3a3632' : '#c5bfb5';
 // =========================================
 let stateFeatures = [], naepData = null, currentState = null;
 let displayScale = 1;
+let activePin = null; // { mapX, mapY, label } in 975x610 map space
+let pinEl = null;
 
 const FIPS = {
   AL:'01',AK:'02',AZ:'04',AR:'05',CA:'06',CO:'08',CT:'09',DE:'10',DC:'11',
@@ -264,6 +266,7 @@ const STATE_NAMES = {
 const mapCanvas = document.getElementById('mapCanvas');
 const mapCtx = mapCanvas.getContext('2d');
 const wrapper = document.getElementById('mapWrapper');
+const pinLayer = document.getElementById('pinLayer');
 
 // =========================================
 // LOAD DATA
@@ -306,6 +309,7 @@ function renderMap(hlId) {
       mapCtx.closePath(); mapCtx.fill(); mapCtx.stroke();
     }
   }
+  renderPin();
 }
 
 function getBBox(code) {
@@ -317,6 +321,56 @@ function getBBox(code) {
     if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y;
   }
   return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
+}
+
+function computeStatePointAlignment(code, stateData) {
+  if (!stateData) return null;
+  const bb = getBBox(code);
+  if (!bb) return null;
+  const allPts = [
+    ...(stateData.cities || []),
+    ...(stateData.districts || []),
+    ...(stateData.schools || [])
+  ].filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+  if (!allPts.length) return null;
+
+  let dx0 = Infinity, dy0 = Infinity, dx1 = -Infinity, dy1 = -Infinity;
+  for (const p of allPts) {
+    if (p.x < dx0) dx0 = p.x;
+    if (p.y < dy0) dy0 = p.y;
+    if (p.x > dx1) dx1 = p.x;
+    if (p.y > dy1) dy1 = p.y;
+  }
+
+  const dw = dx1 - dx0, dh = dy1 - dy0;
+  if (dw < 1 || dh < 1) return null;
+
+  const pad = 0.04;
+  const availW = bb.w * (1 - 2 * pad);
+  const availH = bb.h * (1 - 2 * pad);
+  const scale = Math.min(availW / dw, availH / dh);
+  const scaledW = dw * scale, scaledH = dh * scale;
+  const ox = bb.x0 + bb.w * pad + (availW - scaledW) / 2;
+  const oy = bb.y0 + bb.h * pad + (availH - scaledH) / 2;
+  return { dx0, dy0, scale, ox, oy };
+}
+
+function alignStatePoint(pt, alignment) {
+  return {
+    x: alignment.ox + (pt.x - alignment.dx0) * alignment.scale,
+    y: alignment.oy + (pt.y - alignment.dy0) * alignment.scale
+  };
+}
+
+function findNearestCityByLatLon(cities, lat, lon) {
+  if (!Array.isArray(cities) || !cities.length) return null;
+  let best = null, bestDist = Infinity;
+  for (const c of cities) {
+    if (!Number.isFinite(c.lat) || !Number.isFinite(c.lon)) continue;
+    const d = (c.lat - lat) ** 2 + (c.lon - lon) ** 2;
+    if (d < bestDist) { bestDist = d; best = c; }
+  }
+  return best;
 }
 
 // =========================================
@@ -426,6 +480,7 @@ function proficiencyToFraction(proficiency) {
 // customNumerator/customDenominator override NAEP when provided (city-level data)
 function selectState(code, locationLabel, customNumerator, customDenominator) {
   currentState = code;
+  if (!locationLabel) clearPin();
   updateExploreLink();
   updateStoryFromNaep(code, locationLabel, customNumerator, customDenominator);
   pulseHighlight(code);
@@ -484,17 +539,29 @@ function initLocationBtn() {
           const locationLabel = cityName && stateName ? `${cityName}, ${stateName}` : (stateName || cityName);
           // Try to fetch city-level proficiency data
           let customNum = null, customDen = null;
+          let pinPoint = null;
+          let pinLabel = cityName;
           try {
             const stateResp = await fetch(`../public/data/${detectedState}.json`);
             if (stateResp.ok) {
               const stateData = await stateResp.json();
-              if (stateData.cities && cityName) {
+              const cities = Array.isArray(stateData.cities) ? stateData.cities : [];
+              let exactCityMatch = null;
+              if (cities.length && cityName) {
                 const cityLower = cityName.toLowerCase();
-                const match = stateData.cities.find(c => c.name.toLowerCase() === cityLower);
-                if (match && match.proficiency != null) {
-                  const frac = proficiencyToFraction(match.proficiency);
+                exactCityMatch = cities.find(c => c.name && c.name.toLowerCase() === cityLower) || null;
+                if (exactCityMatch && exactCityMatch.proficiency != null) {
+                  const frac = proficiencyToFraction(exactCityMatch.proficiency);
                   customNum = frac.numerator;
                   customDen = frac.denominator;
+                }
+              }
+              if (cities.length) {
+                const pinCity = exactCityMatch || findNearestCityByLatLon(cities, lat, lon);
+                const alignment = computeStatePointAlignment(detectedState, stateData);
+                if (pinCity && alignment) {
+                  pinPoint = alignStatePoint(pinCity, alignment);
+                  if (!pinLabel) pinLabel = pinCity.name || '';
                 }
               }
             }
@@ -502,13 +569,13 @@ function initLocationBtn() {
           selectState(detectedState, locationLabel, customNum, customDen);
           // Update explore link with GPS coords
           updateExploreLink(lat, lon, cityName);
-          // Drop a pin on the city
-          const projected = projectionFromLatLon(lon, lat);
-          if (projected) dropPin(projected[0], projected[1], cityName);
+          if (pinPoint) setPin(pinPoint.x, pinPoint.y, pinLabel || cityName || stateName || '');
+          else clearPin();
           // Update button text with city + state
           const displayName = cityName && stateName ? `${cityName}, ${stateName}` : (cityName || stateName);
           btn.textContent = displayName ? `My location: ${displayName}` : 'Use my location';
         } else {
+          clearPin();
           btn.textContent = 'Use my location';
         }
         btn.disabled = false;
@@ -519,42 +586,31 @@ function initLocationBtn() {
   });
 }
 
-// Simple AlbersUSA forward projection
-function projectionFromLatLon(lon, lat) {
-  if (lat < 24 || lat > 50 || lon < -130 || lon > -65) {
-    if (lat >= 18 && lat <= 23 && lon >= -161 && lon <= -154)
-      return [260 + (lon + 160) * 15, 520 + (20.5 - lat) * 15];
-    if (lat >= 51 && lat <= 72 && lon >= -180 && lon <= -129)
-      return [150 + (lon + 170) * 3.5, 490 + (65 - lat) * 5];
-    return null;
+function renderPin() {
+  if (!activePin) {
+    if (pinEl) { pinEl.remove(); pinEl = null; }
+    return;
   }
-  const lambda0 = -98.6 * Math.PI / 180;
-  const phi0 = 38.7 * Math.PI / 180;
-  const phi1 = 29.5 * Math.PI / 180;
-  const phi2 = 45.5 * Math.PI / 180;
-  const n = 0.5 * (Math.sin(phi1) + Math.sin(phi2));
-  const C = Math.cos(phi1) ** 2 + 2 * n * Math.sin(phi1);
-  const rho0 = Math.sqrt(C - 2 * n * Math.sin(phi0)) / n;
-  const lambda = lon * Math.PI / 180;
-  const phi = lat * Math.PI / 180;
-  const rho = Math.sqrt(C - 2 * n * Math.sin(phi)) / n;
-  const theta = n * (lambda - lambda0);
-  const x = rho * Math.sin(theta);
-  const y = rho0 - rho * Math.cos(theta);
-  const scale = 1300;
-  const tx = 487.5, ty = 305;
-  return [x * scale + tx, -y * scale + ty];
+  if (!pinEl) {
+    pinEl = document.createElement('div');
+    pinEl.className = 'city-pin';
+    pinEl.innerHTML = '<div class="pin-label"></div><div class="pin-head"></div><div class="pin-tail"></div>';
+    pinLayer.appendChild(pinEl);
+  }
+  pinEl.style.left = `${activePin.mapX * displayScale}px`;
+  pinEl.style.top = `${activePin.mapY * displayScale}px`;
+  pinEl.querySelector('.pin-label').textContent = activePin.label || '';
 }
 
-function dropPin(mapX, mapY, label) {
-  const layer = document.getElementById('pinLayer');
-  layer.innerHTML = '';
-  const pin = document.createElement('div');
-  pin.className = 'city-pin';
-  pin.style.left = `${mapX * displayScale}px`;
-  pin.style.top = `${mapY * displayScale}px`;
-  pin.innerHTML = `<div class="pin-label">${label}</div><div class="pin-head"></div><div class="pin-tail"></div>`;
-  layer.appendChild(pin);
+function setPin(mapX, mapY, label) {
+  activePin = { mapX, mapY, label };
+  if (pinEl) { pinEl.remove(); pinEl = null; }
+  renderPin();
+}
+
+function clearPin() {
+  activePin = null;
+  renderPin();
 }
 
 // =========================================

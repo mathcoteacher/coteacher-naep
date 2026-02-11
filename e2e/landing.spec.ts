@@ -1,4 +1,6 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 // Block external API calls so tests are deterministic (IP geo, BigDataCloud)
 test.beforeEach(async ({ page }) => {
@@ -6,6 +8,163 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/ipapi.co/**", (route) => route.abort());
   await page.route("**/ipwho.is/**", (route) => route.abort());
 });
+
+function getStateBBoxFromTopology(fips: string) {
+  const topology = JSON.parse(
+    readFileSync(join(process.cwd(), "public/us-states.json"), "utf-8")
+  ) as any;
+  const transform = topology.transform || { scale: [1, 1], translate: [0, 0] };
+  const scale = transform.scale as [number, number];
+  const translate = transform.translate as [number, number];
+
+  const decoded = (topology.arcs as Array<Array<[number, number]>>).map((arc) => {
+    let x = 0,
+      y = 0;
+    return arc.map((p) => {
+      x += p[0];
+      y += p[1];
+      return [x * scale[0] + translate[0], y * scale[1] + translate[1]] as [
+        number,
+        number
+      ];
+    });
+  });
+
+  const ring = (idx: number[]) => {
+    const coords: Array<[number, number]> = [];
+    for (const i of idx) {
+      const arc = i >= 0 ? decoded[i] : decoded[~i].slice().reverse();
+      for (let j = 0; j < arc.length; j++) {
+        if (j > 0 || coords.length === 0) coords.push(arc[j]);
+      }
+    }
+    return coords;
+  };
+
+  const geom = (topology.objects.states.geometries as any[]).find((g) => g.id === fips);
+  if (!geom) throw new Error(`Missing geometry for FIPS ${fips}`);
+  const polys =
+    geom.type === "MultiPolygon"
+      ? (geom.arcs as number[][][]).map((a) => a.map(ring))
+      : [(geom.arcs as number[][]).map(ring)];
+
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity;
+  for (const poly of polys) {
+    for (const r of poly) {
+      for (const [x, y] of r) {
+        if (x < x0) x0 = x;
+        if (y < y0) y0 = y;
+        if (x > x1) x1 = x;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+  return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
+}
+
+function getExpectedAlignedCityPoint(stateCode: string, fips: string, cityName: string) {
+  const stateData = JSON.parse(
+    readFileSync(join(process.cwd(), `public/data/${stateCode}.json`), "utf-8")
+  ) as any;
+  const city = (stateData.cities as any[]).find(
+    (c) => (c.name as string).toLowerCase() === cityName.toLowerCase()
+  );
+  if (!city) throw new Error(`Missing city "${cityName}" in ${stateCode}.json`);
+
+  const allPts = [
+    ...(stateData.cities || []),
+    ...(stateData.districts || []),
+    ...(stateData.schools || []),
+  ].filter((p: any) => Number.isFinite(p.x) && Number.isFinite(p.y));
+  if (!allPts.length) throw new Error(`No points in ${stateCode}.json`);
+
+  let dx0 = Infinity,
+    dy0 = Infinity,
+    dx1 = -Infinity,
+    dy1 = -Infinity;
+  for (const p of allPts) {
+    if (p.x < dx0) dx0 = p.x;
+    if (p.y < dy0) dy0 = p.y;
+    if (p.x > dx1) dx1 = p.x;
+    if (p.y > dy1) dy1 = p.y;
+  }
+
+  const bb = getStateBBoxFromTopology(fips);
+  const dw = dx1 - dx0;
+  const dh = dy1 - dy0;
+  const pad = 0.04;
+  const availW = bb.w * (1 - 2 * pad);
+  const availH = bb.h * (1 - 2 * pad);
+  const alignScale = Math.min(availW / dw, availH / dh);
+  const scaledW = dw * alignScale;
+  const scaledH = dh * alignScale;
+  const ox = bb.x0 + bb.w * pad + (availW - scaledW) / 2;
+  const oy = bb.y0 + bb.h * pad + (availH - scaledH) / 2;
+
+  return {
+    x: ox + (city.x - dx0) * alignScale,
+    y: oy + (city.y - dy0) * alignScale,
+  };
+}
+
+const CANAL_WINCHESTER_POINT = getExpectedAlignedCityPoint(
+  "OH",
+  "39",
+  "Canal Winchester"
+);
+
+async function mockCanalWinchesterGps(page: Page) {
+  await page.route("**/api.bigdatacloud.net/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        city: "Township of Madison",
+        locality: "Canal Winchester",
+        principalSubdivision: "Ohio",
+        principalSubdivisionCode: "US-OH",
+        localityInfo: {
+          administrative: [
+            { name: "Ohio", order: 6, adminLevel: 4 },
+            { name: "Fairfield County", order: 7, adminLevel: 6 },
+            { name: "Township of Madison", order: 8, adminLevel: 7 },
+            { name: "Canal Winchester", order: 12, adminLevel: 8 },
+          ],
+          informative: [
+            { name: "Central Lowlands", order: 4 },
+            { name: "America/New_York", description: "time zone", order: 5 },
+            { name: "43110", description: "postal code", order: 9 },
+            { name: "39-045-80206", description: "FIPS code", order: 11 },
+          ],
+        },
+      }),
+    })
+  );
+
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "geolocation", {
+      value: {
+        getCurrentPosition: (success: PositionCallback) => {
+          success({
+            coords: {
+              latitude: 39.84,
+              longitude: -82.8,
+              accuracy: 10,
+              altitude: null,
+              altitudeAccuracy: null,
+              heading: null,
+              speed: null,
+            },
+            timestamp: Date.now(),
+          } as GeolocationPosition);
+        },
+      },
+    });
+  });
+}
 
 // ============================================================
 // Test Group A: Page Structure & CTAs
@@ -335,5 +494,116 @@ test.describe("Geolocation Label State Transitions", () => {
     expect(label).toBe("California");
     // Should NOT contain "Canal Winchester" anymore
     expect(label).not.toContain("Canal Winchester");
+  });
+});
+
+// ============================================================
+// Test Group D: GPS Pin Placement
+// ============================================================
+
+test.describe("GPS Pin Placement", () => {
+  test("drops Canal Winchester pin at expected map location on desktop", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await mockCanalWinchesterGps(page);
+
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    await page.locator("#locBtn").click();
+
+    const pin = page.locator("#pinLayer .city-pin");
+    await expect(pin).toBeVisible();
+
+    const pos = await page.evaluate(
+      ({ x, y }) => {
+        const wrapper = document.getElementById("mapWrapper");
+        const pinEl = document.querySelector("#pinLayer .city-pin") as HTMLElement | null;
+        if (!wrapper || !pinEl) return null;
+        const scale = wrapper.clientWidth / 975;
+        return {
+          actualLeft: parseFloat(pinEl.style.left),
+          actualTop: parseFloat(pinEl.style.top),
+          expectedLeft: x * scale,
+          expectedTop: y * scale,
+        };
+      },
+      { x: CANAL_WINCHESTER_POINT.x, y: CANAL_WINCHESTER_POINT.y }
+    );
+
+    expect(pos).not.toBeNull();
+    expect(Number.isFinite(pos!.actualLeft)).toBe(true);
+    expect(Number.isFinite(pos!.actualTop)).toBe(true);
+    expect(Math.abs(pos!.actualLeft - pos!.expectedLeft)).toBeLessThan(3);
+    expect(Math.abs(pos!.actualTop - pos!.expectedTop)).toBeLessThan(3);
+  });
+
+  test("drops Canal Winchester pin at expected map location on mobile", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockCanalWinchesterGps(page);
+
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    await page.locator("#locBtn").click();
+
+    const pin = page.locator("#pinLayer .city-pin");
+    await expect(pin).toBeVisible();
+
+    const pos = await page.evaluate(
+      ({ x, y }) => {
+        const wrapper = document.getElementById("mapWrapper");
+        const pinEl = document.querySelector("#pinLayer .city-pin") as HTMLElement | null;
+        if (!wrapper || !pinEl) return null;
+        const scale = wrapper.clientWidth / 975;
+        return {
+          actualLeft: parseFloat(pinEl.style.left),
+          actualTop: parseFloat(pinEl.style.top),
+          expectedLeft: x * scale,
+          expectedTop: y * scale,
+        };
+      },
+      { x: CANAL_WINCHESTER_POINT.x, y: CANAL_WINCHESTER_POINT.y }
+    );
+
+    expect(pos).not.toBeNull();
+    expect(Number.isFinite(pos!.actualLeft)).toBe(true);
+    expect(Number.isFinite(pos!.actualTop)).toBe(true);
+    expect(Math.abs(pos!.actualLeft - pos!.expectedLeft)).toBeLessThan(3);
+    expect(Math.abs(pos!.actualTop - pos!.expectedTop)).toBeLessThan(3);
+  });
+
+  test("keeps pin aligned after viewport resize", async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await mockCanalWinchesterGps(page);
+
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    await page.locator("#locBtn").click();
+    await expect(page.locator("#pinLayer .city-pin")).toBeVisible();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(100);
+
+    const pos = await page.evaluate(
+      ({ x, y }) => {
+        const wrapper = document.getElementById("mapWrapper");
+        const pinEl = document.querySelector("#pinLayer .city-pin") as HTMLElement | null;
+        if (!wrapper || !pinEl) return null;
+        const scale = wrapper.clientWidth / 975;
+        return {
+          actualLeft: parseFloat(pinEl.style.left),
+          actualTop: parseFloat(pinEl.style.top),
+          expectedLeft: x * scale,
+          expectedTop: y * scale,
+        };
+      },
+      { x: CANAL_WINCHESTER_POINT.x, y: CANAL_WINCHESTER_POINT.y }
+    );
+
+    expect(pos).not.toBeNull();
+    expect(Math.abs(pos!.actualLeft - pos!.expectedLeft)).toBeLessThan(3);
+    expect(Math.abs(pos!.actualTop - pos!.expectedTop)).toBeLessThan(3);
   });
 });
