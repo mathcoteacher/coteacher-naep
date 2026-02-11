@@ -505,11 +505,11 @@ const preview = document.getElementById('preview');
 // LOAD DATA
 // =========================================
 async function loadTopology() {
-  stateFeatures = topoDecode(await (await fetch('../public/us-states.json')).json())('states');
+  stateFeatures = topoDecode(await (await fetch('/us-states.json')).json())('states');
 }
 async function loadStateData(code) {
   try {
-    const r = await fetch(`../public/data/${code}.json`);
+    const r = await fetch(`/data/${code}.json`);
     if (!r.ok) throw new Error(`No data for ${code}`);
     stateData = await r.json();
     alignPointsToState(code);
@@ -1590,7 +1590,7 @@ let searchHighlight = -1;
 
 async function loadSearchIndex() {
   try {
-    const r = await fetch('../public/data/search-index.json');
+    const r = await fetch('/data/search-index.json');
     if (r.ok) searchIndex = await r.json();
   } catch {}
 }

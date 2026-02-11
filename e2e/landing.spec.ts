@@ -289,6 +289,48 @@ test.describe("Explore Link Navigation", () => {
 });
 
 // ============================================================
+// Test Group B2: Explore Search Selection
+// ============================================================
+
+test.describe("Explore Search Selection", () => {
+  test("selecting Dublin (Ohio) updates story to city proficiency and highlights the exact city dot", async ({
+    page,
+  }) => {
+    await page.goto("/explore.html?state=OH");
+    await page.waitForLoadState("networkidle");
+
+    const input = page.locator("#searchInput");
+    await input.fill("Dublin");
+
+    const result = page
+      .locator(".search-result")
+      .filter({ hasText: "Dublin" })
+      .filter({ hasText: "Ohio" })
+      .first();
+    await expect(result).toBeVisible();
+    await result.click();
+
+    await page.waitForFunction(
+      () => document.getElementById("stateLabel")?.textContent === "Dublin",
+      null,
+      { timeout: 10000 }
+    );
+
+    await expect(page.locator("#numText")).toHaveText("7");
+    await expect(page.locator("#denomText")).toHaveText("10");
+
+    await page.waitForFunction(() => {
+      const selected = Array.from(document.querySelectorAll(".data-point.selected-target"));
+      return selected.some((el) => {
+        const label = el.querySelector(".pt-label")?.textContent?.trim();
+        const display = (el as HTMLElement).style.display;
+        return label === "Dublin" && display !== "none";
+      });
+    });
+  });
+});
+
+// ============================================================
 // Test Group C: Geolocation Label State Transitions
 // ============================================================
 

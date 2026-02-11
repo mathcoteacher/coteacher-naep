@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Math CoTeacher</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #f5f0e8; --card-bg: #faf7f2; --ink: #2b2b2b; --muted: #888;
+    --accent: #e8542f; --dead: #c5bfb5; --dead-dark: #3a3632;
+    --bg-dark: #1e1b17; --card-dark: #2a2621;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--ink);
+    min-height: 100vh;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: var(--bg-dark); color: #e0dbd2; }
+  }
+
+  /* === Layout: 60/40 desktop, stacked mobile === */
+  .experience {
+    display: flex;
+    min-height: 100vh;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .map-side {
+    flex: 0 0 62%;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+  }
+  .story-side {
+    flex: 0 0 38%;
+    padding: 1.5rem 1.5rem 1.5rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1rem;
+  }
+  @media (max-width: 900px) {
+    .experience { flex-direction: column; }
+    .map-side { flex: none; }
+    .story-side { flex: none; padding: 1rem; order: -1; }
+    .toolbar { order: 1; }
+    .map-wrapper { order: 2; }
+    .explore-link { order: 3; }
+  }
+
+  /* === Toolbar (minimal on landing) === */
+  .toolbar {
+    display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;
+  }
+  .toolbar button {
+    font-family: inherit; font-size: 0.78rem; font-weight: 600;
+    padding: 0.3rem 0.7rem; border-radius: 6px;
+    border: 2px solid #d4cfc5; background: transparent; color: var(--ink);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+  @media (prefers-color-scheme: dark) {
+    .toolbar button {
+      border-color: var(--dead-dark); color: #e0dbd2;
+    }
+  }
+
+  /* === Map === */
+  .map-wrapper {
+    position: relative;
+    width: 100%;
+    border-radius: 8px;
+    aspect-ratio: 975 / 610;
+    overflow: hidden;
+    flex: 1;
+  }
+  .map-wrapper canvas { display: block; width: 100%; }
+
+  /* === City pin marker === */
+  .city-pin {
+    position: absolute; pointer-events: none;
+    transform: translate(-50%, -100%);
+    animation: pinDrop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    z-index: 10;
+  }
+  .city-pin .pin-head {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(232, 84, 47, 0.4);
+  }
+  .city-pin .pin-tail {
+    width: 3px; height: 14px; background: var(--accent);
+    margin: -2px auto 0; border-radius: 0 0 2px 2px;
+  }
+  .city-pin .pin-label {
+    position: absolute; left: 50%; top: -8px;
+    transform: translateX(-50%);
+    white-space: nowrap; font-size: 11px; font-weight: 700;
+    color: var(--ink); background: rgba(245,240,232,0.9);
+    padding: 1px 6px; border-radius: 4px;
+    text-shadow: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    .city-pin .pin-label {
+      color: #e0dbd2; background: rgba(30,27,23,0.9);
+    }
+  }
+  @keyframes pinDrop {
+    0% { opacity: 0; transform: translate(-50%, -300%); }
+    60% { opacity: 1; transform: translate(-50%, -90%); }
+    80% { transform: translate(-50%, -105%); }
+    100% { transform: translate(-50%, -100%); }
+  }
+
+  /* === Explore link (secondary, below map) === */
+  .explore-link {
+    display: inline-block;
+    margin-top: 0.5rem;
+    align-self: center;
+    font-family: inherit; font-size: 0.78rem; font-weight: 600;
+    padding: 0.3rem 0.7rem; border-radius: 6px;
+    border: 2px solid #d4cfc5; background: transparent; color: var(--ink);
+    cursor: pointer; transition: all 0.15s;
+    text-decoration: none;
+    text-align: center;
+  }
+  .explore-link:hover { border-color: var(--accent); color: var(--accent); }
+  @media (prefers-color-scheme: dark) {
+    .explore-link { border-color: var(--dead-dark); color: #e0dbd2; }
+  }
+
+  /* === Story side === */
+  .anim-container {
+    width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .anim-container canvas { display: block; width: 100%; }
+
+  .message {
+    opacity: 0;
+    transition: opacity 0.8s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .message.visible { opacity: 1; }
+  .headline {
+    font-size: clamp(1.3rem, 3.5vw, 2rem); font-weight: 800;
+    line-height: 1.15; letter-spacing: -0.02em;
+  }
+  .headline .num { color: var(--accent); }
+  .cta-button {
+    display: inline-block;
+    margin-top: 0.8rem;
+    align-self: center;
+    padding: 0.7rem 1.6rem;
+    font-family: inherit;
+    font-size: clamp(0.95rem, 2.2vw, 1.15rem);
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .cta-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(232, 84, 47, 0.35);
+  }
+  @media (prefers-color-scheme: dark) {
+    .headline { color: #e0dbd2; }
+  }
+</style>
+</head>
+<body>
+
+<div class="experience">
+  <!-- Left: Map -->
+  <div class="map-side">
+    <div class="toolbar">
+      <button id="locBtn" style="display:none">Use my location</button>
+    </div>
+    <div class="map-wrapper" id="mapWrapper">
+      <canvas id="mapCanvas" width="975" height="610"></canvas>
+      <div id="pinLayer"></div>
+    </div>
+    <a id="exploreBtn" href="/explore.html" class="explore-link">Explore the map &rarr;</a>
+  </div>
+
+  <!-- Right: Story -->
+  <div class="story-side">
+    <div class="anim-container">
+      <canvas id="animCanvas"></canvas>
+    </div>
+    <div class="message" id="msg">
+      <div class="headline"><span class="num" id="numText">3</span> out of <span class="num" id="denomText">4</span> <span id="stateLabel">American</span> 8th graders are looking at a lifetime of lost potential because they are below proficient in math.</div>
+      <a href="#solution" class="cta-button">Math CoTeacher is the solution</a>
+    </div>
+  </div>
+</div>
+
+<script>
+// =========================================
+// TOPO DECODER
+// =========================================
+function topoDecode(topology) {
+  const { scale: s, translate: t } = topology.transform || { scale: [1,1], translate: [0,0] };
+  function decArc(arc) { let x=0,y=0; return arc.map(p => { x+=p[0]; y+=p[1]; return [x*s[0]+t[0], y*s[1]+t[1]]; }); }
+  const dec = topology.arcs.map(decArc);
+  function ring(idx) { const c=[]; for(const i of idx){ const a=i>=0?dec[i]:dec[~i].slice().reverse(); for(let j=0;j<a.length;j++) if(j>0||c.length===0) c.push(a[j]); } return c; }
+  return o => topology.objects[o].geometries.map(g => {
+    if(g.type==='Polygon') return{type:'Polygon',coordinates:g.arcs.map(ring),properties:g.properties,id:g.id};
+    if(g.type==='MultiPolygon') return{type:'MultiPolygon',coordinates:g.arcs.map(a=>a.map(ring)),properties:g.properties,id:g.id};
+    return g;
+  });
+}
+
+// =========================================
+// COLORS
+// =========================================
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const ACCENT = '#e8542f';
+const STATE_FILL = isDark ? '#2a2621' : '#e8e3d8';
+const STATE_STROKE = isDark ? '#3a3632' : '#c5bfb5';
+const HIGHLIGHT_FILL = isDark ? '#3a3228' : '#f5e6d0';
+const HIGHLIGHT_STROKE = ACCENT;
+const BG = isDark ? '#1e1b17' : '#f5f0e8';
+const DEAD = isDark ? '#3a3632' : '#c5bfb5';
+
+// =========================================
+// STATE
+// =========================================
+let stateFeatures = [], naepData = null, currentState = null;
+let displayScale = 1;
+let activePin = null; // { mapX, mapY, label } in 975x610 map space
+let pinEl = null;
+
+const FIPS = {
+  AL:'01',AK:'02',AZ:'04',AR:'05',CA:'06',CO:'08',CT:'09',DE:'10',DC:'11',
+  FL:'12',GA:'13',HI:'15',ID:'16',IL:'17',IN:'18',IA:'19',KS:'20',KY:'21',
+  LA:'22',ME:'23',MD:'24',MA:'25',MI:'26',MN:'27',MS:'28',MO:'29',MT:'30',
+  NE:'31',NV:'32',NH:'33',NJ:'34',NM:'35',NY:'36',NC:'37',ND:'38',OH:'39',
+  OK:'40',OR:'41',PA:'42',RI:'44',SC:'45',SD:'46',TN:'47',TX:'48',UT:'49',
+  VT:'50',VA:'51',WA:'53',WV:'54',WI:'55',WY:'56'
+};
+
+const STATE_NAMES = {
+  AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',
+  CO:'Colorado',CT:'Connecticut',DE:'Delaware',DC:'District of Columbia',
+  FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',
+  IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',
+  ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',
+  MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',
+  NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',
+  NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',
+  PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',
+  TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',
+  WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming'
+};
+
+const mapCanvas = document.getElementById('mapCanvas');
+const mapCtx = mapCanvas.getContext('2d');
+const wrapper = document.getElementById('mapWrapper');
+const pinLayer = document.getElementById('pinLayer');
+
+// =========================================
+// LOAD DATA
+// =========================================
+async function loadTopology() {
+  stateFeatures = topoDecode(await (await fetch('/us-states.json')).json())('states');
+}
+async function loadNaep() {
+  naepData = await (await fetch('/naep.json')).json();
+}
+
+// =========================================
+// MAP RENDERING (zoomed-out US, one state highlighted)
+// =========================================
+let highlightPulseAlpha = 0; // for pulse animation
+let pulseAF = null;
+
+function renderMap(hlId) {
+  const wW = wrapper.clientWidth;
+  displayScale = wW / 975;
+  mapCanvas.width = 975; mapCanvas.height = 610;
+  mapCanvas.style.width = `${wW}px`;
+  mapCanvas.style.height = `${Math.round(610 * displayScale)}px`;
+  mapCtx.clearRect(0, 0, 975, 610);
+  for (const f of stateFeatures) {
+    const hi = f.id === hlId;
+    mapCtx.fillStyle = hi ? HIGHLIGHT_FILL : STATE_FILL;
+    mapCtx.strokeStyle = hi ? HIGHLIGHT_STROKE : STATE_STROKE;
+    mapCtx.lineWidth = hi ? 2.5 : 0.5;
+    if (hi && highlightPulseAlpha > 0) {
+      mapCtx.lineWidth = 2.5 + highlightPulseAlpha * 2;
+    }
+    const polys = f.type === 'MultiPolygon' ? f.coordinates : [f.coordinates];
+    for (const poly of polys) for (const ring of poly) {
+      mapCtx.beginPath();
+      for (let i = 0; i < ring.length; i++) {
+        if (i === 0) mapCtx.moveTo(ring[i][0], ring[i][1]);
+        else mapCtx.lineTo(ring[i][0], ring[i][1]);
+      }
+      mapCtx.closePath(); mapCtx.fill(); mapCtx.stroke();
+    }
+  }
+  renderPin();
+}
+
+function getBBox(code) {
+  const f = stateFeatures.find(f => f.id === FIPS[code]);
+  if (!f) return null;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const p = f.type === 'MultiPolygon' ? f.coordinates : [f.coordinates];
+  for (const poly of p) for (const ring of poly) for (const [x, y] of ring) {
+    if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y;
+  }
+  return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
+}
+
+function computeStatePointAlignment(code, stateData) {
+  if (!stateData) return null;
+  const bb = getBBox(code);
+  if (!bb) return null;
+  const allPts = [
+    ...(stateData.cities || []),
+    ...(stateData.districts || []),
+    ...(stateData.schools || [])
+  ].filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+  if (!allPts.length) return null;
+
+  let dx0 = Infinity, dy0 = Infinity, dx1 = -Infinity, dy1 = -Infinity;
+  for (const p of allPts) {
+    if (p.x < dx0) dx0 = p.x;
+    if (p.y < dy0) dy0 = p.y;
+    if (p.x > dx1) dx1 = p.x;
+    if (p.y > dy1) dy1 = p.y;
+  }
+
+  const dw = dx1 - dx0, dh = dy1 - dy0;
+  if (dw < 1 || dh < 1) return null;
+
+  const pad = 0.04;
+  const availW = bb.w * (1 - 2 * pad);
+  const availH = bb.h * (1 - 2 * pad);
+  const scale = Math.min(availW / dw, availH / dh);
+  const scaledW = dw * scale, scaledH = dh * scale;
+  const ox = bb.x0 + bb.w * pad + (availW - scaledW) / 2;
+  const oy = bb.y0 + bb.h * pad + (availH - scaledH) / 2;
+  return { dx0, dy0, scale, ox, oy };
+}
+
+function alignStatePoint(pt, alignment) {
+  return {
+    x: alignment.ox + (pt.x - alignment.dx0) * alignment.scale,
+    y: alignment.oy + (pt.y - alignment.dy0) * alignment.scale
+  };
+}
+
+function findNearestCityByLatLon(cities, lat, lon) {
+  if (!Array.isArray(cities) || !cities.length) return null;
+  let best = null, bestDist = Infinity;
+  for (const c of cities) {
+    if (!Number.isFinite(c.lat) || !Number.isFinite(c.lon)) continue;
+    const d = (c.lat - lat) ** 2 + (c.lon - lon) ** 2;
+    if (d < bestDist) { bestDist = d; best = c; }
+  }
+  return best;
+}
+
+// =========================================
+// PULSE ANIMATION for state highlight
+// =========================================
+function pulseHighlight(code) {
+  if (pulseAF) cancelAnimationFrame(pulseAF);
+  const start = performance.now();
+  const dur = 1800; // 3 pulses over 1.8s
+  function tick(now) {
+    const t = (now - start) / dur;
+    if (t >= 1) {
+      highlightPulseAlpha = 0;
+      renderMap(FIPS[code]);
+      pulseAF = null;
+      return;
+    }
+    // 3 sine pulses
+    highlightPulseAlpha = Math.sin(t * Math.PI * 3) * (1 - t);
+    renderMap(FIPS[code]);
+    pulseAF = requestAnimationFrame(tick);
+  }
+  pulseAF = requestAnimationFrame(tick);
+}
+
+// =========================================
+// CLICK STATE ON MAP
+// =========================================
+function pointInPoly(x, y, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+mapCanvas.addEventListener('click', function (e) {
+  const rect = wrapper.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) / displayScale;
+  const my = (e.clientY - rect.top) / displayScale;
+  for (const f of stateFeatures) {
+    const code = Object.keys(FIPS).find(k => FIPS[k] === f.id);
+    if (!code) continue;
+    const polys = f.type === 'MultiPolygon' ? f.coordinates : [f.coordinates];
+    for (const poly of polys) {
+      if (pointInPoly(mx, my, poly[0])) {
+        selectState(code);
+        return;
+      }
+    }
+  }
+});
+
+// =========================================
+// PURE HELPERS (mirrored in src/landing-helpers.ts for unit tests)
+// =========================================
+const ADMIN_PATTERN = /^(township|county|borough|parish|district|division|precinct|unincorporated)\b/i;
+
+function buildExploreHref(state, lat, lon, city) {
+  const params = new URLSearchParams();
+  if (state) params.set('state', state);
+  if (lat != null && lon != null) { params.set('lat', String(lat)); params.set('lon', String(lon)); }
+  if (city) params.set('city', city);
+  const qs = params.toString();
+  return qs ? `/explore.html?${qs}` : '/explore.html';
+}
+
+function extractLocationLabel(geo) {
+  // 1. locality — often the actual city name (e.g. "Canal Winchester")
+  if (geo.locality && geo.locality.trim() && !ADMIN_PATTERN.test(geo.locality.trim())) return geo.locality.trim();
+  // 2. city — sometimes set to township/county, so filter admin names
+  if (geo.city && geo.city.trim() && !ADMIN_PATTERN.test(geo.city.trim())) return geo.city.trim();
+  // 3. administrative entries at city level (adminLevel >= 8)
+  if (geo.localityInfo && geo.localityInfo.administrative) {
+    const candidates = geo.localityInfo.administrative
+      .filter(e => e.adminLevel != null && e.adminLevel >= 8 && e.name && !ADMIN_PATTERN.test(e.name.trim()))
+      .sort((a, b) => (b.adminLevel || 0) - (a.adminLevel || 0));
+    if (candidates.length > 0) return candidates[0].name;
+  }
+  // 4. Last resort: state name
+  if (geo.principalSubdivision && geo.principalSubdivision.trim()) return geo.principalSubdivision.trim();
+  return '';
+}
+
+function proficiencyToFraction(proficiency) {
+  const belowProficient = 1 - proficiency;
+  const denominators = [4, 5, 10];
+  let bestNum = 0, bestDen = 10, bestError = Infinity;
+  for (const den of denominators) {
+    const num = Math.round(belowProficient * den);
+    const error = Math.abs(num / den - belowProficient);
+    if (error < bestError || (error === bestError && den > bestDen)) { bestError = error; bestNum = num; bestDen = den; }
+  }
+  if (bestNum <= 0) bestNum = 1;
+  if (bestNum >= bestDen) bestNum = bestDen - 1;
+  return { numerator: bestNum, denominator: bestDen };
+}
+
+// =========================================
+// STATE SELECTION & EXPLORE LINK
+// =========================================
+
+// selectState is called from: map click (manual), IP geo, GPS geo
+// Manual and IP calls pass no locationLabel → headline uses state name
+// GPS calls pass locationLabel → headline uses "City" (or state fallback)
+// customNumerator/customDenominator override NAEP when provided (city-level data)
+function selectState(code, locationLabel, customNumerator, customDenominator) {
+  currentState = code;
+  if (!locationLabel) clearPin();
+  updateExploreLink();
+  updateStoryFromNaep(code, locationLabel, customNumerator, customDenominator);
+  pulseHighlight(code);
+}
+
+function updateExploreLink(lat, lon, city) {
+  const btn = document.getElementById('exploreBtn');
+  btn.href = buildExploreHref(currentState, lat, lon, city);
+}
+
+// =========================================
+// GEOLOCATION (IP-based, background)
+// =========================================
+async function getGeoLocation() {
+  try {
+    const r = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+    if (d.latitude && d.longitude) return { lat: d.latitude, lon: d.longitude, city: d.city || '', region: d.region_code || '' };
+  } catch {}
+  try {
+    const r = await fetch('https://ipwho.is/', { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+    if (d.latitude && d.longitude) return { lat: d.latitude, lon: d.longitude, city: d.city || '', region: d.region || '' };
+  } catch {}
+  return null;
+}
+
+// =========================================
+// GPS LOCATION + CITY PIN
+// =========================================
+function initLocationBtn() {
+  const btn = document.getElementById('locBtn');
+  if (!navigator.geolocation) return;
+  btn.style.display = '';
+  btn.addEventListener('click', () => {
+    btn.textContent = 'Locating...';
+    btn.disabled = true;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude, lon = pos.coords.longitude;
+        let detectedState = null, cityName = '', stateName = '';
+        try {
+          const resp = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
+          if (resp.ok) {
+            const geo = await resp.json();
+            const code = geo.principalSubdivisionCode;
+            if (code && code.startsWith('US-')) detectedState = code.slice(3);
+            cityName = extractLocationLabel(geo);
+            stateName = geo.principalSubdivision || (detectedState ? STATE_NAMES[detectedState] : '') || '';
+          }
+        } catch {}
+        if (detectedState) {
+          // Use city-only headline label when available; otherwise fall back to state.
+          const locationLabel = cityName || stateName;
+          // Try to fetch city-level proficiency data
+          let customNum = null, customDen = null;
+          let pinPoint = null;
+          let pinLabel = cityName;
+          try {
+            const stateResp = await fetch(`/data/${detectedState}.json`);
+            if (stateResp.ok) {
+              const stateData = await stateResp.json();
+              const cities = Array.isArray(stateData.cities) ? stateData.cities : [];
+              let exactCityMatch = null;
+              if (cities.length && cityName) {
+                const cityLower = cityName.toLowerCase();
+                exactCityMatch = cities.find(c => c.name && c.name.toLowerCase() === cityLower) || null;
+                if (exactCityMatch && exactCityMatch.proficiency != null) {
+                  const frac = proficiencyToFraction(exactCityMatch.proficiency);
+                  customNum = frac.numerator;
+                  customDen = frac.denominator;
+                }
+              }
+              if (cities.length) {
+                const pinCity = exactCityMatch || findNearestCityByLatLon(cities, lat, lon);
+                const alignment = computeStatePointAlignment(detectedState, stateData);
+                if (pinCity && alignment) {
+                  pinPoint = alignStatePoint(pinCity, alignment);
+                  if (!pinLabel) pinLabel = pinCity.name || '';
+                }
+              }
+            }
+          } catch {}
+          selectState(detectedState, locationLabel, customNum, customDen);
+          // Update explore link with GPS coords
+          updateExploreLink(lat, lon, cityName);
+          if (pinPoint) setPin(pinPoint.x, pinPoint.y, pinLabel || cityName || stateName || '');
+          else clearPin();
+          // Use city-only button label when available; otherwise state fallback.
+          const displayName = cityName || stateName;
+          btn.textContent = displayName ? `My location: ${displayName}` : 'Use my location';
+        } else {
+          clearPin();
+          btn.textContent = 'Use my location';
+        }
+        btn.disabled = false;
+      },
+      () => { btn.textContent = 'Use my location'; btn.disabled = false; },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
+}
+
+function renderPin() {
+  if (!activePin) {
+    if (pinEl) { pinEl.remove(); pinEl = null; }
+    return;
+  }
+  if (!pinEl) {
+    pinEl = document.createElement('div');
+    pinEl.className = 'city-pin';
+    pinEl.innerHTML = '<div class="pin-label"></div><div class="pin-head"></div><div class="pin-tail"></div>';
+    pinLayer.appendChild(pinEl);
+  }
+  pinEl.style.left = `${activePin.mapX * displayScale}px`;
+  pinEl.style.top = `${activePin.mapY * displayScale}px`;
+  pinEl.querySelector('.pin-label').textContent = activePin.label || '';
+}
+
+function setPin(mapX, mapY, label) {
+  activePin = { mapX, mapY, label };
+  if (pinEl) { pinEl.remove(); pinEl = null; }
+  renderPin();
+}
+
+function clearPin() {
+  activePin = null;
+  renderPin();
+}
+
+// =========================================
+// FIGURE ANIMATION
+// =========================================
+const animCanvas = document.getElementById('animCanvas');
+const animCtx = animCanvas.getContext('2d');
+let AW, AH, AFW, AFH, AGAP, ASX, ASY;
+let TOTAL = 4, FLICKER_COUNT = 3;
+let formingPixels = [], animStart = 0, animAF, textShown = false;
+
+function animSizing() {
+  const container = animCanvas.parentElement;
+  const maxW = container.clientWidth;
+  AW = maxW; AH = Math.round(maxW * 0.38);
+  animCanvas.width = AW; animCanvas.height = AH;
+  AFW = Math.round(AW * 0.055); AFH = Math.round(AFW * 2.6);
+  AGAP = Math.round((AW - AFW * TOTAL) / (TOTAL + 1)); ASX = AGAP;
+  ASY = Math.round((AH - AFH) / 2) + 10;
+}
+
+function drawFig(x, y, w, h, color, alpha) {
+  animCtx.save(); animCtx.globalAlpha = alpha; animCtx.fillStyle = color;
+  const hr = w * 0.42, cx = x + w / 2, cy = y + hr;
+  animCtx.beginPath(); animCtx.arc(cx, cy, hr, 0, Math.PI * 2); animCtx.fill();
+  const bt = cy + hr + h * 0.04, bb = y + h, bw = w * 0.85, bx = x + (w - bw) / 2;
+  animCtx.beginPath();
+  animCtx.moveTo(bx + bw * 0.15, bt); animCtx.lineTo(bx + bw * 0.85, bt);
+  animCtx.quadraticCurveTo(bx + bw, bt, bx + bw, bt + (bb - bt) * 0.15);
+  animCtx.lineTo(bx + bw, bb - 6); animCtx.quadraticCurveTo(bx + bw, bb, bx + bw - 6, bb);
+  animCtx.lineTo(bx + 6, bb); animCtx.quadraticCurveTo(bx, bb, bx, bb - 6);
+  animCtx.lineTo(bx, bt + (bb - bt) * 0.15); animCtx.quadraticCurveTo(bx, bt, bx + bw * 0.15, bt);
+  animCtx.fill(); animCtx.restore();
+}
+function drawGlow(x, y, w, h, color, alpha, gr) {
+  if (gr > 0 && alpha > 0.1) { animCtx.save(); animCtx.globalAlpha = alpha * 0.35; animCtx.shadowColor = color; animCtx.shadowBlur = gr; drawFig(x, y, w, h, color, 1); animCtx.restore(); }
+  drawFig(x, y, w, h, color, alpha);
+}
+
+function buildPixels(fi) {
+  const fx = ASX + fi * (AFW + AGAP);
+  const ps = Math.max(2, AFW * 0.12);
+  const cols = Math.ceil(AFW / ps), rows = Math.ceil(AFH / ps);
+  const off = document.createElement('canvas'); off.width = AFW + 4; off.height = AFH + 4;
+  const oc = off.getContext('2d'); oc.fillStyle = ACCENT;
+  const hr = AFW * 0.42, cx = 2 + AFW / 2, cy = 2 + hr;
+  oc.beginPath(); oc.arc(cx, cy, hr, 0, Math.PI * 2); oc.fill();
+  const bt = cy + hr + AFH * 0.04, bb = 2 + AFH, bw = AFW * 0.85, bx = 2 + (AFW - bw) / 2;
+  oc.beginPath(); oc.moveTo(bx + bw * 0.15, bt); oc.lineTo(bx + bw * 0.85, bt);
+  oc.quadraticCurveTo(bx + bw, bt, bx + bw, bt + (bb - bt) * 0.15);
+  oc.lineTo(bx + bw, bb - 6); oc.quadraticCurveTo(bx + bw, bb, bx + bw - 6, bb);
+  oc.lineTo(bx + 6, bb); oc.quadraticCurveTo(bx, bb, bx, bb - 6);
+  oc.lineTo(bx, bt + (bb - bt) * 0.15); oc.quadraticCurveTo(bx, bt, bx + bw * 0.15, bt); oc.fill();
+  const imgD = oc.getImageData(0, 0, off.width, off.height);
+  const pixels = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const px = Math.round(c * ps + ps / 2) + 2, py = Math.round(r * ps + ps / 2) + 2;
+    if (px < imgD.width && py < imgD.height && imgD.data[(py * imgD.width + px) * 4 + 3] > 128)
+      pixels.push({ tx: fx + c * ps, ty: ASY + r * ps, x: fx + c * ps + (Math.random() - 0.5) * AW * 0.5, y: ASY + r * ps + (Math.random() - 0.5) * AH * 0.8, size: ps });
+  }
+  return pixels;
+}
+
+const flickerOrder = [3, 0, 5, 1, 6, 4, 2];
+const fDur = 0.25, fGap = 0.22;
+function animEase(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+
+function startAnimation() {
+  animSizing();
+  const msg = document.getElementById('msg');
+  msg.classList.remove('visible'); msg.style.opacity = '0'; textShown = false;
+  formingPixels = [];
+  for (let i = 0; i < TOTAL; i++) formingPixels.push(buildPixels(i));
+  animStart = performance.now();
+  if (animAF) cancelAnimationFrame(animAF);
+  runAnim();
+}
+
+function runAnim() {
+  const el = (performance.now() - animStart) / 1000;
+  animCtx.fillStyle = BG; animCtx.fillRect(0, 0, AW, AH);
+
+  if (el < 1.5) {
+    const t = animEase(Math.min(el / 1.5, 1));
+    for (let i = 0; i < TOTAL; i++) for (const p of formingPixels[i]) {
+      animCtx.globalAlpha = 0.3 + 0.7 * t; animCtx.fillStyle = ACCENT;
+      animCtx.fillRect(p.x + (p.tx - p.x) * t, p.y + (p.ty - p.y) * t, p.size, p.size);
+    }
+    animCtx.globalAlpha = 1;
+  } else if (el < 2.0) {
+    for (let i = 0; i < TOTAL; i++) {
+      const pulse = 0.92 + 0.08 * Math.sin(el * 3 + i * 0.7);
+      drawGlow(ASX + i * (AFW + AGAP), ASY, AFW, AFH, ACCENT, pulse, 10);
+    }
+  } else if (el < 4.0) {
+    const dt = el - 2.0;
+    const fs = new Array(TOTAL).fill(1);
+    for (let k = 0; k < FLICKER_COUNT; k++) {
+      const fi = flickerOrder[k % flickerOrder.length], lt = (dt - k * fGap) / fDur;
+      if (lt >= 0 && lt < 1) fs[fi] = Math.sin(lt * Math.PI * 8) * 0.5 * (1 - animEase(lt)) + 0.5 * (1 - animEase(lt));
+      else if (lt >= 1) fs[fi] = 0;
+    }
+    for (let i = 0; i < TOTAL; i++) {
+      const fx = ASX + i * (AFW + AGAP);
+      if (i >= FLICKER_COUNT) drawGlow(fx, ASY, AFW, AFH, ACCENT, 0.92 + 0.08 * Math.sin(el * 3 + i * 0.7), 10);
+      else {
+        const s = fs[i];
+        if (s <= 0) drawFig(fx, ASY, AFW, AFH, DEAD, 0.5);
+        else if (s >= 0.95) drawGlow(fx, ASY, AFW, AFH, ACCENT, 0.95, 10);
+        else drawGlow(fx, ASY, AFW, AFH, ACCENT, s, s * 14);
+      }
+    }
+  } else {
+    for (let i = 0; i < FLICKER_COUNT; i++) drawFig(ASX + i * (AFW + AGAP), ASY, AFW, AFH, DEAD, 0.5);
+    for (let i = FLICKER_COUNT; i < TOTAL; i++) drawGlow(ASX + i * (AFW + AGAP), ASY, AFW, AFH, ACCENT, 0.92 + 0.08 * Math.sin(el * 3 + i * 0.7), 10);
+    if (el > 4.3 && !textShown) {
+      textShown = true;
+      const msg = document.getElementById('msg'); msg.style.opacity = ''; void msg.offsetHeight; msg.classList.add('visible');
+    }
+  }
+  animAF = requestAnimationFrame(runAnim);
+}
+
+// =========================================
+// UPDATE STORY (from naep.json — no state data file needed)
+// =========================================
+// locationLabel: optional override for the headline label.
+// - IP/manual: not provided → uses state name (e.g. "Ohio")
+// - GPS: provided as city only when available (e.g. "Canal Winchester")
+// customNumerator/customDenominator: optional city-level overrides
+function updateStoryFromNaep(code, locationLabel, customNumerator, customDenominator) {
+  if (!naepData) return;
+  const entry = code ? naepData.states[code] : naepData.national.US;
+  if (!entry) return;
+  const num = customNumerator != null ? customNumerator : entry.numerator;
+  const den = customDenominator != null ? customDenominator : entry.denominator;
+  TOTAL = den || 10;
+  FLICKER_COUNT = num || 7;
+  document.getElementById('numText').textContent = num;
+  document.getElementById('denomText').textContent = den;
+  // Use locationLabel if provided (GPS), otherwise state name (IP/manual), otherwise "American"
+  const label = locationLabel || (code ? (STATE_NAMES[code] || code) : 'American');
+  document.getElementById('stateLabel').textContent = label;
+  startAnimation();
+}
+
+// =========================================
+// INIT
+// =========================================
+async function init() {
+  const geoPromise = getGeoLocation();
+
+  await Promise.all([loadTopology(), loadNaep()]);
+
+  // Show US map with national stats initially
+  renderMap(null);
+  updateStoryFromNaep(null);
+
+  // IP geolocation — detect state, highlight it
+  try {
+    const geo = await Promise.race([geoPromise, new Promise(r => setTimeout(() => r(null), 2000))]);
+    if (geo && geo.region && FIPS[geo.region]) {
+      selectState(geo.region);
+    }
+  } catch {}
+
+  initLocationBtn();
+
+  window.addEventListener('resize', () => {
+    displayScale = wrapper.clientWidth / 975;
+    renderMap(currentState ? FIPS[currentState] : null);
+    animSizing();
+  });
+}
+init();
+</script>
+</body>
+</html>

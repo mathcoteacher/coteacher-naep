@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "publish": "wrangler deploy",
+    "prepare:public-pages": "node scripts/sync-prototypes-to-public.mjs",
+    "publish": "npm run prepare:public-pages && wrangler deploy",
     "typecheck": "tsc --noEmit",
     "test": "vitest --ui",
     "test:run": "vitest run",

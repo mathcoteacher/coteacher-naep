@@ -377,14 +377,9 @@ export default {
         });
       }
 
-      if (url.pathname === "/") {
-        const data = await loadNaep(env as Env);
-        const { country, stateCode } = resolveRegion(request);
-        const { scopeLabel, value } = chooseNaepRecord(data, country, stateCode);
-        const { numerator, denominator } = parseRatio(value);
-
-        const html = homeHTML(numerator, denominator, scopeLabel);
-        return new Response(html, { status: 200, headers: baseHeaders() });
+      const assetResponse = await (env as Env).ASSETS.fetch(request);
+      if (assetResponse.status !== 404) {
+        return assetResponse;
       }
 
       return new Response(notFoundHTML(), { status: 404, headers: baseHeaders() });
