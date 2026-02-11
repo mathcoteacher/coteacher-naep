@@ -237,12 +237,60 @@
   <div class="map-side">
     <div class="toolbar">
       <select id="stateSelector">
-        <option value="OH" selected>Ohio</option>
+        <option value="AL">Alabama</option>
+        <option value="AK">Alaska</option>
+        <option value="AZ">Arizona</option>
+        <option value="AR">Arkansas</option>
+        <option value="CA">California</option>
+        <option value="CO">Colorado</option>
+        <option value="CT">Connecticut</option>
+        <option value="DE">Delaware</option>
+        <option value="DC">District of Columbia</option>
+        <option value="FL">Florida</option>
+        <option value="GA">Georgia</option>
+        <option value="HI">Hawaii</option>
+        <option value="ID">Idaho</option>
+        <option value="IL">Illinois</option>
         <option value="IN">Indiana</option>
+        <option value="IA">Iowa</option>
+        <option value="KS">Kansas</option>
+        <option value="KY">Kentucky</option>
+        <option value="LA">Louisiana</option>
+        <option value="ME">Maine</option>
+        <option value="MD">Maryland</option>
+        <option value="MA">Massachusetts</option>
+        <option value="MI">Michigan</option>
+        <option value="MN">Minnesota</option>
+        <option value="MS">Mississippi</option>
+        <option value="MO">Missouri</option>
+        <option value="MT">Montana</option>
+        <option value="NE">Nebraska</option>
+        <option value="NV">Nevada</option>
+        <option value="NH">New Hampshire</option>
+        <option value="NJ">New Jersey</option>
+        <option value="NM">New Mexico</option>
+        <option value="NY">New York</option>
+        <option value="NC">North Carolina</option>
+        <option value="ND">North Dakota</option>
+        <option value="OH" selected>Ohio</option>
+        <option value="OK">Oklahoma</option>
+        <option value="OR">Oregon</option>
         <option value="PA">Pennsylvania</option>
+        <option value="RI">Rhode Island</option>
+        <option value="SC">South Carolina</option>
+        <option value="SD">South Dakota</option>
+        <option value="TN">Tennessee</option>
+        <option value="TX">Texas</option>
+        <option value="UT">Utah</option>
+        <option value="VT">Vermont</option>
+        <option value="VA">Virginia</option>
+        <option value="WA">Washington</option>
+        <option value="WV">West Virginia</option>
+        <option value="WI">Wisconsin</option>
       </select>
       <button id="resetBtn">US Map</button>
       <button id="myAreaBtn" style="display:none"></button>
+      <button id="preciseLocBtn" style="display:none" title="Use GPS for precise location">&#x1F4CD; Use my location</button>
       <button class="active" data-layer="cities">Cities</button>
       <button data-layer="districts">Districts</button>
       <button data-layer="schools">Schools</button>
@@ -352,8 +400,14 @@ async function loadTopology() {
   stateFeatures = topoDecode(await (await fetch('../public/us-states.json')).json())('states');
 }
 async function loadStateData(code) {
-  stateData = await (await fetch(`../public/data/${code}.json`)).json();
-  alignPointsToState(code);
+  try {
+    const r = await fetch(`../public/data/${code}.json`);
+    if (!r.ok) throw new Error(`No data for ${code}`);
+    stateData = await r.json();
+    alignPointsToState(code);
+  } catch {
+    stateData = { state: code, stateName: code, naep: { text: 'N/A', numerator: 0, denominator: 10 }, schools: [], districts: [], cities: [] };
+  }
 }
 
 // The data generation script (prepare-map-data.js) uses D3's default geoAlbersUsa()
@@ -569,7 +623,9 @@ function clampPanBounds(){
     x1:bb.x1*sc+targetZoomTx, y1:bb.y1*sc+targetZoomTy
   };
   const visW=975, visH=610;
-  const minVisW=(sbb.x1-sbb.x0)*margin, minVisH=(sbb.y1-sbb.y0)*margin;
+  // Cap min-visible to half the viewport so constraints don't conflict at high zoom
+  const minVisW=Math.min((sbb.x1-sbb.x0)*margin, visW*0.5);
+  const minVisH=Math.min((sbb.y1-sbb.y0)*margin, visH*0.5);
   // Don't let the state slide fully off-screen
   if(sbb.x1<minVisW) targetZoomTx+=(minVisW-sbb.x1);
   if(sbb.x0>visW-minVisW) targetZoomTx-=(sbb.x0-(visW-minVisW));
@@ -788,10 +844,10 @@ mapCanvas.addEventListener('click',async function(e){
   const rect=wrapper.getBoundingClientRect();
   const mx=((e.clientX-rect.left)/displayScale-zoomTx)/zoomScale;
   const my=((e.clientY-rect.top)/displayScale-zoomTy)/zoomScale;
-  const avail=[...document.getElementById('stateSelector').options].map(o=>o.value);
+  const avail=new Set([...document.getElementById('stateSelector').options].map(o=>o.value));
   for(const f of stateFeatures){
     const code=Object.keys(FIPS).find(k=>FIPS[k]===f.id);
-    if(!code||!avail.includes(code))continue;
+    if(!code||!avail.has(code))continue;
     const polys=f.type==='MultiPolygon'?f.coordinates:[f.coordinates];
     for(const poly of polys){
       if(pointInPoly(mx,my,poly[0])){
@@ -826,13 +882,13 @@ async function getGeoLocation() {
     const r = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
     if (!r.ok) throw new Error('ipapi failed');
     const d = await r.json();
-    if (d.latitude && d.longitude) return { lat: d.latitude, lon: d.longitude, city: d.city || '' };
+    if (d.latitude && d.longitude) return { lat: d.latitude, lon: d.longitude, city: d.city || '', region: d.region_code || '' };
   } catch {}
   try {
     const r = await fetch('https://ipwho.is/', { signal: AbortSignal.timeout(4000) });
     if (!r.ok) throw new Error('ipwho failed');
     const d = await r.json();
-    if (d.latitude && d.longitude) return { lat: d.latitude, lon: d.longitude, city: d.city || '' };
+    if (d.latitude && d.longitude) return { lat: d.latitude, lon: d.longitude, city: d.city || '', region: d.region || '' };
   } catch {}
   return null;
 }
@@ -892,6 +948,118 @@ function cancelGeoZoom() { geoZoomPending = false; }
 wrapper.addEventListener('wheel', cancelGeoZoom, { once: true });
 wrapper.addEventListener('touchstart', cancelGeoZoom, { once: true });
 wrapper.addEventListener('mousedown', cancelGeoZoom, { once: true });
+
+// Find which state code a projected point falls inside
+function stateFromPoint(px, py) {
+  for (const f of stateFeatures) {
+    const code = Object.keys(FIPS).find(k => FIPS[k] === f.id);
+    if (!code) continue;
+    const polys = f.type === 'MultiPolygon' ? f.coordinates : [f.coordinates];
+    for (const poly of polys) {
+      if (pointInPoly(px, py, poly[0])) return code;
+    }
+  }
+  return null;
+}
+
+// Switch to a state, load data, zoom, and optionally zoom to a city
+async function switchToState(code, thenZoomCity) {
+  const sel = document.getElementById('stateSelector');
+  if (![...sel.options].some(o => o.value === code)) return false;
+  currentState = code;
+  sel.value = code;
+  await loadStateData(currentState);
+  pointsLayer.innerHTML = ''; pointElements = [];
+  updateStory();
+  zoomToState(currentState, true);
+  if (thenZoomCity) {
+    // Wait for state zoom to settle, then zoom to city
+    setTimeout(() => zoomToCity(thenZoomCity), 1800);
+  }
+  return true;
+}
+
+// Precise location via browser geolocation API (user-triggered only)
+function initPreciseLocationBtn() {
+  const btn = document.getElementById('preciseLocBtn');
+  if (!navigator.geolocation) return; // no geolocation support
+  btn.style.display = '';
+  btn.addEventListener('click', () => {
+    btn.textContent = 'Locating...';
+    btn.disabled = true;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        // Project to AlbersUSA to find which state
+        // Use a simple reverse: try each state's bounding box
+        // First, store the precise geo result
+        geoResult = { lat, lon, city: '', region: '' };
+        // Determine state from coordinates using the projection
+        // We need to find the state, load its data, then find nearest city
+        // Strategy: use ipapi region if available, otherwise check point-in-polygon
+        const proj = projectionFromLatLon(lon, lat);
+        let detectedState = null;
+        if (proj) detectedState = stateFromPoint(proj[0], proj[1]);
+        if (detectedState && detectedState !== currentState) {
+          await switchToState(detectedState);
+        }
+        // Now find nearest city within the (possibly new) state
+        const nearest = findNearestCity(lat, lon);
+        if (nearest) {
+          geoNearestCity = nearest;
+          geoNearestSchool = findNearestSchool(nearest);
+          setupMyAreaButton(nearest);
+          zoomToCity(nearest);
+        }
+        btn.textContent = '\u{1F4CD} Use my location';
+        btn.disabled = false;
+      },
+      (err) => {
+        btn.textContent = '\u{1F4CD} Use my location';
+        btn.disabled = false;
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
+}
+
+// Simple AlbersUSA forward projection (approximate, matches d3.geoAlbersUsa defaults)
+function projectionFromLatLon(lon, lat) {
+  // d3.geoAlbersUsa default: scale 1070, translate [480, 250] for 960x600
+  // Our viewport is 975x610, so we use the default geoAlbersUsa which maps to 975x610
+  // Simplified Albers equal-area conic for lower 48
+  if (lat < 24 || lat > 50 || lon < -130 || lon > -65) {
+    // Hawaii or Alaska - rough approximation
+    if (lat >= 18 && lat <= 23 && lon >= -161 && lon <= -154) {
+      // Hawaii approximate
+      return [260 + (lon + 160) * 15, 520 + (20.5 - lat) * 15];
+    }
+    if (lat >= 51 && lat <= 72 && lon >= -180 && lon <= -129) {
+      // Alaska approximate
+      return [150 + (lon + 170) * 3.5, 490 + (65 - lat) * 5];
+    }
+    return null;
+  }
+  // Lower 48: approximate Albers projection
+  const lambda0 = -96 * Math.PI / 180;
+  const phi0 = 37.5 * Math.PI / 180;
+  const phi1 = 29.5 * Math.PI / 180;
+  const phi2 = 45.5 * Math.PI / 180;
+  const n = 0.5 * (Math.sin(phi1) + Math.sin(phi2));
+  const C = Math.cos(phi1) ** 2 + 2 * n * Math.sin(phi1);
+  const rho0 = Math.sqrt(C - 2 * n * Math.sin(phi0)) / n;
+  const lambda = lon * Math.PI / 180;
+  const phi = lat * Math.PI / 180;
+  const rho = Math.sqrt(C - 2 * n * Math.sin(phi)) / n;
+  const theta = n * (lambda - lambda0);
+  const x = rho * Math.sin(theta);
+  const y = rho0 - rho * Math.cos(theta);
+  // Scale and translate to 975x610 viewport (d3 geoAlbersUsa defaults)
+  const scale = 1070;
+  const tx = 487.5, ty = 305;
+  return [x * scale + tx, -y * scale + ty];
+}
 
 // =========================================
 // MAGNETIC HOVER SYSTEM
@@ -1273,10 +1441,23 @@ document.getElementById('resetBtn').addEventListener('click',()=>{
 // INIT
 // =========================================
 async function init(){
-  // Fire geolocation in parallel with data loading (no added latency)
+  // Fire geolocation in parallel with topology loading (no added latency)
   const geoPromise = getGeoLocation();
 
   await loadTopology();
+
+  // Try to auto-select the user's state from IP before loading any state data
+  let geoSettled = false;
+  try {
+    const geo = await Promise.race([geoPromise, new Promise(r => setTimeout(() => r(null), 2000))]);
+    geoResult = geo;
+    if (geo && geo.region && FIPS[geo.region]) {
+      currentState = geo.region;
+      document.getElementById('stateSelector').value = currentState;
+    }
+    geoSettled = true;
+  } catch {}
+
   await loadStateData(currentState);
   renderMap(FIPS[currentState]);
   renderPoints();
@@ -1284,22 +1465,31 @@ async function init(){
   updateStory();
   setTimeout(()=>zoomToState(currentState,true),600);
 
-  // After state zoom animation settles, try geo-zoom
-  geoPromise.then(geo => {
-    geoResult = geo;
+  // Initialize "Use my location" button
+  initPreciseLocationBtn();
+
+  // After state zoom animation settles, try geo-zoom to nearest city
+  const finalizeGeo = (geo) => {
     if (!geo) return;
+    geoResult = geo;
     const nearest = findNearestCity(geo.lat, geo.lon);
     if (!nearest) return;
     geoNearestCity = nearest;
     geoNearestSchool = findNearestSchool(nearest);
     setupMyAreaButton(nearest);
-    // Auto-zoom after state animation completes (~600ms delay + 900ms anim + 1s pause)
     setTimeout(() => {
       if (geoZoomPending && userZoomLevel <= 1.05) {
         zoomToCity(nearest);
       }
     }, 2500);
-  });
+  };
+
+  if (geoSettled && geoResult) {
+    finalizeGeo(geoResult);
+  } else {
+    // IP lookup was slow — handle when it resolves
+    geoPromise.then(finalizeGeo).catch(() => {});
+  }
 
   window.addEventListener('resize',()=>{
     displayScale=wrapper.clientWidth/975;
