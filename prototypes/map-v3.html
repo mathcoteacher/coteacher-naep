@@ -48,12 +48,6 @@
   }
 
   /* === Map section === */
-  .map-header {
-    display: flex; align-items: center; gap: 0.8rem;
-    margin-bottom: 0.5rem; flex-wrap: wrap;
-  }
-  .map-header a { color: var(--accent); text-decoration: none; font-size: 0.85rem; }
-
   .toolbar {
     display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;
   }
@@ -142,6 +136,27 @@
   }
   .zoom-indicator.visible { opacity: 1; }
 
+  .zoom-buttons {
+    position: absolute; bottom: 12px; right: 12px;
+    display: flex; flex-direction: column; gap: 4px;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 10;
+  }
+  .zoom-buttons.visible { opacity: 1; pointer-events: auto; }
+  .zoom-btn {
+    width: 32px; height: 32px; border-radius: 6px;
+    border: 1.5px solid #d4cfc5; background: rgba(250,247,242,0.92);
+    color: var(--ink); font-size: 1.1rem; font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.15s, background 0.15s;
+    line-height: 1;
+  }
+  .zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .zoom-btn:active { background: rgba(232,84,47,0.1); }
+  @media (prefers-color-scheme: dark) {
+    .zoom-btn { border-color: var(--dead-dark); background: rgba(42,38,33,0.92); color: #e0dbd2; }
+    .zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+  }
+
   /* === Story side === */
   .anim-container {
     width: 100%;
@@ -153,6 +168,9 @@
   .message {
     opacity: 0;
     transition: opacity 0.8s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
   .message.visible { opacity: 1; }
   .headline {
@@ -160,26 +178,29 @@
     line-height: 1.15; letter-spacing: -0.02em;
   }
   .headline .num { color: var(--accent); }
-  .subline {
-    margin-top: 0.5rem; font-size: clamp(0.82rem, 2vw, 0.95rem);
-    color: var(--muted); line-height: 1.5;
+  .cta-button {
+    display: inline-block;
+    margin-top: 0.8rem;
+    align-self: center;
+    padding: 0.7rem 1.6rem;
+    font-family: inherit;
+    font-size: clamp(0.95rem, 2.2vw, 1.15rem);
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
   }
-  .subsubline {
-    margin-top: 0.4rem; font-size: clamp(0.82rem, 2vw, 0.95rem);
-    color: var(--accent); line-height: 1.5; font-weight: 600;
+  .cta-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(232, 84, 47, 0.35);
   }
   @media (prefers-color-scheme: dark) {
     .headline { color: #e0dbd2; }
-    .subline { color: #7a756c; }
   }
-
-  .explore-prompt {
-    font-size: 0.82rem; color: var(--muted);
-    opacity: 0; transition: opacity 0.6s;
-    margin-top: 0.3rem;
-  }
-  .explore-prompt.visible { opacity: 1; }
-  .explore-prompt strong { color: var(--accent); }
 
   /* === Preview card === */
   .preview {
@@ -212,9 +233,6 @@
 <div class="experience">
   <!-- Left: Map -->
   <div class="map-side">
-    <div class="map-header">
-      <a href="index.html">&larr; Prototypes</a>
-    </div>
     <div class="toolbar">
       <select id="stateSelector">
         <option value="OH" selected>Ohio</option>
@@ -232,6 +250,10 @@
       <div class="points-layer" id="pointsLayer"></div>
       <div class="zoom-hint" id="zoomHint">Scroll to zoom</div>
       <div class="zoom-indicator" id="zoomIndicator"></div>
+      <div class="zoom-buttons" id="zoomButtons">
+        <button class="zoom-btn" id="zoomInBtn" title="Zoom in">+</button>
+        <button class="zoom-btn" id="zoomOutBtn" title="Zoom out">&minus;</button>
+      </div>
     </div>
   </div>
 
@@ -241,12 +263,8 @@
       <canvas id="animCanvas"></canvas>
     </div>
     <div class="message" id="msg">
-      <div class="headline"><span class="num" id="numText">7</span> out of <span class="num" id="denomText">10</span> <span id="stateLabel">Ohio</span> 8th graders are below proficient in math.</div>
-      <div class="subline">They are deep down a road of a lifetime of lost potential.</div>
-      <div class="subsubline">It doesn't have to be this way.</div>
-    </div>
-    <div class="explore-prompt" id="explorePrompt">
-      <strong>&larr;</strong> Hover over the map to explore individual schools and cities.
+      <div class="headline"><span class="num" id="numText">7</span> out of <span class="num" id="denomText">10</span> <span id="stateLabel">Ohio</span> 8th graders are looking at a lifetime of lost potential because they are below proficient in math.</div>
+      <a href="#demo" class="cta-button">Math CoTeacher is the Solution &rarr;</a>
     </div>
   </div>
 </div>
@@ -303,6 +321,10 @@ let zoomScale=1, zoomTx=0, zoomTy=0, displayScale=1;
 let baseScale=1, baseTx=0, baseTy=0, userZoomLevel=1;
 let targetZoomScale=1, targetZoomTx=0, targetZoomTy=0;
 let smoothZoomRAF=null, labelTimer=null, zoomHintTimer=null;
+let isAnimatingZoom=false; // true during setZoom() animated transitions
+let isDragging=false, dragStartX=0, dragStartY=0, dragStartTx=0, dragStartTy=0;
+let panOffsetX=0, panOffsetY=0, targetPanX=0, targetPanY=0;
+let smoothPanRAF=null;
 let pointElements=[]; // [{el, pt, labelEl}]
 const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
@@ -411,22 +433,32 @@ let zoomAF = null;
 function setZoom(sc,tx,ty,anim){
   const fs=zoomScale,ftx=zoomTx,fty=zoomTy;
   if(!anim){
+    isAnimatingZoom=false;
     zoomScale=sc;zoomTx=tx;zoomTy=ty;
     renderMap(FIPS[currentState]);renderPoints();resolveLabels();
     return;
   }
   if(zoomAF)cancelAnimationFrame(zoomAF);
+  isAnimatingZoom=true;
   const st=performance.now(),dur=900;
   function ease(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
   function tick(now){
+    if(!isAnimatingZoom){return;} // cancelled by pan/scroll
     const e=ease(Math.min((now-st)/dur,1));
     zoomScale=fs+(sc-fs)*e;zoomTx=ftx+(tx-ftx)*e;zoomTy=fty+(ty-fty)*e;
     renderMap(FIPS[currentState]);
     if(pointElements.length>0)repositionPoints();else renderPoints();
     if((now-st)/dur<1)zoomAF=requestAnimationFrame(tick);
-    else { checkDotTierChange(); resolveLabels(); }
+    else { isAnimatingZoom=false; checkDotTierChange(); resolveLabels(); }
   }
   zoomAF=requestAnimationFrame(tick);
+}
+
+function cancelAnimatedZoom(){
+  if(isAnimatingZoom){
+    isAnimatingZoom=false;
+    if(zoomAF){cancelAnimationFrame(zoomAF);zoomAF=null;}
+  }
 }
 
 function zoomToState(code,anim=true){
@@ -443,7 +475,8 @@ function zoomToState(code,anim=true){
 }
 
 function resetZoom(anim=true){
-  userZoomLevel=1;
+  userZoomLevel=1;baseScale=1;baseTx=0;baseTy=0;
+  targetZoomScale=1;targetZoomTx=0;targetZoomTy=0;
   if(smoothZoomRAF){cancelAnimationFrame(smoothZoomRAF);smoothZoomRAF=null;}
   setZoom(1,0,0,anim);
   updateZoomUI();
@@ -475,7 +508,7 @@ wrapper.addEventListener('wheel',function(e){
   // Adjust zoom level (normalize deltaMode)
   let dy=e.deltaY;
   if(e.deltaMode===1)dy*=20;
-  const newLevel=Math.max(1,Math.min(8,userZoomLevel*(1-dy*0.001)));
+  const newLevel=Math.max(1,Math.min(8,userZoomLevel*(1-dy*0.002)));
   if(Math.abs(newLevel-userZoomLevel)<0.001)return;
   userZoomLevel=newLevel;
 
@@ -485,6 +518,7 @@ wrapper.addEventListener('wheel',function(e){
   targetZoomTy=my-mapY*targetZoomScale;
 
   // Cancel any animated zoom transition
+  cancelAnimatedZoom();
   if(zoomAF){cancelAnimationFrame(zoomAF);zoomAF=null;}
 
   hideZoomHint();
@@ -493,7 +527,7 @@ wrapper.addEventListener('wheel',function(e){
 },{passive:false});
 
 function smoothZoomLoop(){
-  const ease=0.15;
+  const ease=0.35;
   zoomScale+=(targetZoomScale-zoomScale)*ease;
   zoomTx+=(targetZoomTx-zoomTx)*ease;
   zoomTy+=(targetZoomTy-zoomTy)*ease;
@@ -501,9 +535,9 @@ function smoothZoomLoop(){
   renderMap(FIPS[currentState]);
   repositionPoints();
 
-  if(Math.abs(zoomScale-targetZoomScale)>0.01||
-     Math.abs(zoomTx-targetZoomTx)>0.1||
-     Math.abs(zoomTy-targetZoomTy)>0.1){
+  if(Math.abs(zoomScale-targetZoomScale)>0.001||
+     Math.abs(zoomTx-targetZoomTx)>0.05||
+     Math.abs(zoomTy-targetZoomTy)>0.05){
     smoothZoomRAF=requestAnimationFrame(smoothZoomLoop);
   } else {
     zoomScale=targetZoomScale;zoomTx=targetZoomTx;zoomTy=targetZoomTy;
@@ -520,22 +554,95 @@ function debouncedResolveLabels(){
 }
 
 // =========================================
-// TOUCH PINCH-TO-ZOOM
+// PAN BOUNDS CLAMPING
+// =========================================
+function clampPanBounds(){
+  const bb=getBBox(currentState);
+  if(!bb)return;
+  // Ensure at least 20% of state bbox stays visible
+  const margin=0.2;
+  const sc=targetZoomScale;
+  const sbb={
+    x0:bb.x0*sc+targetZoomTx, y0:bb.y0*sc+targetZoomTy,
+    x1:bb.x1*sc+targetZoomTx, y1:bb.y1*sc+targetZoomTy
+  };
+  const visW=975, visH=610;
+  const minVisW=(sbb.x1-sbb.x0)*margin, minVisH=(sbb.y1-sbb.y0)*margin;
+  // Don't let the state slide fully off-screen
+  if(sbb.x1<minVisW) targetZoomTx+=(minVisW-sbb.x1);
+  if(sbb.x0>visW-minVisW) targetZoomTx-=(sbb.x0-(visW-minVisW));
+  if(sbb.y1<minVisH) targetZoomTy+=(minVisH-sbb.y1);
+  if(sbb.y0>visH-minVisH) targetZoomTy-=(sbb.y0-(visH-minVisH));
+}
+
+// =========================================
+// CLICK-AND-DRAG PANNING (desktop)
+// =========================================
+wrapper.addEventListener('mousedown',function(e){
+  if(e.button!==0||baseScale<=1)return;
+  cancelAnimatedZoom();
+  cancelGeoZoom();
+  isDragging=true;
+  dragStartX=e.clientX; dragStartY=e.clientY;
+  dragStartTx=targetZoomTx; dragStartTy=targetZoomTy;
+  wrapper.style.cursor='grabbing';
+  e.preventDefault();
+});
+
+document.addEventListener('mousemove',function(e){
+  if(!isDragging)return;
+  const dx=(e.clientX-dragStartX)/displayScale;
+  const dy=(e.clientY-dragStartY)/displayScale;
+  targetZoomTx=dragStartTx+dx;
+  targetZoomTy=dragStartTy+dy;
+  clampPanBounds();
+  // Drive smooth pan directly through smoothZoomLoop
+  if(!smoothZoomRAF)smoothZoomLoop();
+});
+
+document.addEventListener('mouseup',function(){
+  if(!isDragging)return;
+  isDragging=false;
+  wrapper.style.cursor='grab';
+  debouncedResolveLabels();
+});
+
+// =========================================
+// TOUCH PINCH-TO-ZOOM + DRAG-TO-PAN
 // =========================================
 let touchStartDist=0, touchStartZoom=1;
+let touchMode='none'; // 'none','pan','pinch'
+let touchStartX=0, touchStartY=0, touchStartTx=0, touchStartTy=0;
+let touchPrevMidX=0, touchPrevMidY=0;
 
 wrapper.addEventListener('touchstart',function(e){
-  if(e.touches.length===2&&baseScale>1){
+  if(baseScale<=1)return;
+  cancelAnimatedZoom();
+  cancelGeoZoom();
+
+  if(e.touches.length===2){
     e.preventDefault();
+    touchMode='pinch';
     const t0=e.touches[0],t1=e.touches[1];
     touchStartDist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
     touchStartZoom=userZoomLevel;
+    touchPrevMidX=(t0.clientX+t1.clientX)/2;
+    touchPrevMidY=(t0.clientY+t1.clientY)/2;
+  } else if(e.touches.length===1){
+    e.preventDefault();
+    touchMode='pan';
+    touchStartX=e.touches[0].clientX;
+    touchStartY=e.touches[0].clientY;
+    touchStartTx=targetZoomTx;
+    touchStartTy=targetZoomTy;
   }
 },{passive:false});
 
 wrapper.addEventListener('touchmove',function(e){
-  if(e.touches.length===2&&baseScale>1){
-    e.preventDefault();
+  if(baseScale<=1)return;
+  e.preventDefault();
+
+  if(e.touches.length===2&&touchMode==='pinch'){
     const t0=e.touches[0],t1=e.touches[1];
     const dist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
     const ratio=dist/touchStartDist;
@@ -553,15 +660,47 @@ wrapper.addEventListener('touchmove',function(e){
     targetZoomTx=cx-mapX*targetZoomScale;
     targetZoomTy=cy-mapY*targetZoomScale;
 
-    if(zoomAF){cancelAnimationFrame(zoomAF);zoomAF=null;}
+    // Also pan with two-finger drag
+    const panDx=(midX-touchPrevMidX)/displayScale;
+    const panDy=(midY-touchPrevMidY)/displayScale;
+    targetZoomTx+=panDx; targetZoomTy+=panDy;
+    touchPrevMidX=midX; touchPrevMidY=midY;
+
+    clampPanBounds();
     hideZoomHint();
     if(!smoothZoomRAF)smoothZoomLoop();
     updateZoomUI();
+  } else if(e.touches.length===1&&touchMode!=='none'){
+    // Went from 2 fingers to 1: transition smoothly to pan
+    if(touchMode==='pinch'){
+      touchMode='pan';
+      touchStartX=e.touches[0].clientX;
+      touchStartY=e.touches[0].clientY;
+      touchStartTx=targetZoomTx;
+      touchStartTy=targetZoomTy;
+      return;
+    }
+    const dx=(e.touches[0].clientX-touchStartX)/displayScale;
+    const dy=(e.touches[0].clientY-touchStartY)/displayScale;
+    targetZoomTx=touchStartTx+dx;
+    targetZoomTy=touchStartTy+dy;
+    clampPanBounds();
+    if(!smoothZoomRAF)smoothZoomLoop();
   }
 },{passive:false});
 
-wrapper.addEventListener('touchend',function(){
-  debouncedResolveLabels();
+wrapper.addEventListener('touchend',function(e){
+  if(e.touches.length===0){
+    touchMode='none';
+    debouncedResolveLabels();
+  } else if(e.touches.length===1&&touchMode==='pinch'){
+    // Went from 2 fingers to 1: transition to pan
+    touchMode='pan';
+    touchStartX=e.touches[0].clientX;
+    touchStartY=e.touches[0].clientY;
+    touchStartTx=targetZoomTx;
+    touchStartTy=targetZoomTy;
+  }
 });
 
 // =========================================
@@ -570,7 +709,7 @@ wrapper.addEventListener('touchend',function(){
 function showZoomHint(){
   clearTimeout(zoomHintTimer);
   const hint=document.getElementById('zoomHint');
-  hint.textContent=isTouch?'Pinch to zoom':'Scroll to zoom';
+  hint.textContent=isTouch?'Pinch to zoom \u2022 Drag to pan':'Scroll to zoom \u2022 Drag to pan';
   zoomHintTimer=setTimeout(()=>hint.classList.add('visible'),2000);
 }
 
@@ -581,13 +720,53 @@ function hideZoomHint(){
 
 function updateZoomUI(){
   const ind=document.getElementById('zoomIndicator');
+  const btns=document.getElementById('zoomButtons');
   if(userZoomLevel>1.05){
     ind.textContent=`${userZoomLevel.toFixed(1)}x`;
     ind.classList.add('visible');
   } else {
     ind.classList.remove('visible');
   }
+  // Show zoom buttons whenever we're zoomed into a state
+  if(baseScale>1){
+    btns.classList.add('visible');
+  } else {
+    btns.classList.remove('visible');
+  }
 }
+
+// Zoom button handlers
+document.getElementById('zoomInBtn').addEventListener('click',function(e){
+  e.stopPropagation();
+  if(baseScale<=1)return;
+  cancelAnimatedZoom();
+  // Zoom centered on viewport middle
+  const cx=975/2, cy=610/2;
+  const mapX=(cx-zoomTx)/zoomScale, mapY=(cy-zoomTy)/zoomScale;
+  userZoomLevel=Math.min(8,userZoomLevel*1.5);
+  targetZoomScale=baseScale*userZoomLevel;
+  targetZoomTx=cx-mapX*targetZoomScale;
+  targetZoomTy=cy-mapY*targetZoomScale;
+  clampPanBounds();
+  if(!smoothZoomRAF)smoothZoomLoop();
+  updateZoomUI();
+  hideZoomHint();
+});
+
+document.getElementById('zoomOutBtn').addEventListener('click',function(e){
+  e.stopPropagation();
+  if(baseScale<=1)return;
+  cancelAnimatedZoom();
+  const cx=975/2, cy=610/2;
+  const mapX=(cx-zoomTx)/zoomScale, mapY=(cy-zoomTy)/zoomScale;
+  userZoomLevel=Math.max(1,userZoomLevel/1.5);
+  targetZoomScale=baseScale*userZoomLevel;
+  targetZoomTx=cx-mapX*targetZoomScale;
+  targetZoomTy=cy-mapY*targetZoomScale;
+  clampPanBounds();
+  if(!smoothZoomRAF)smoothZoomLoop();
+  updateZoomUI();
+});
 
 // =========================================
 // GEOLOCATION + AUTO-ZOOM
@@ -667,6 +846,7 @@ function setupMyAreaButton(city) {
 function cancelGeoZoom() { geoZoomPending = false; }
 wrapper.addEventListener('wheel', cancelGeoZoom, { once: true });
 wrapper.addEventListener('touchstart', cancelGeoZoom, { once: true });
+wrapper.addEventListener('mousedown', cancelGeoZoom, { once: true });
 
 // =========================================
 // MAGNETIC HOVER SYSTEM
@@ -691,6 +871,7 @@ function hoverLoop(){
 requestAnimationFrame(hoverLoop);
 
 function showPreview(el,pt){
+  if(isDragging||touchMode==='pan')return;
   pvActiveEl=el;
   document.getElementById('pvName').textContent=pt.name;
   document.getElementById('pvStat').textContent=`${Math.round(pt.proficiency*100)}%`;
@@ -942,7 +1123,6 @@ function startAnimation(){
   animSizing();
   const msg=document.getElementById('msg');
   msg.classList.remove('visible');msg.style.opacity='0';textShown=false;
-  document.getElementById('explorePrompt').classList.remove('visible');
   formingPixels=[];
   for(let i=0;i<TOTAL;i++)formingPixels.push(buildPixels(i));
   animStart=performance.now();
@@ -990,7 +1170,6 @@ function runAnim(){
     if(el>4.3&&!textShown){
       textShown=true;
       const msg=document.getElementById('msg');msg.style.opacity='';void msg.offsetHeight;msg.classList.add('visible');
-      setTimeout(()=>document.getElementById('explorePrompt').classList.add('visible'),600);
     }
   }
   animAF=requestAnimationFrame(runAnim);
@@ -1043,17 +1222,7 @@ document.getElementById('stateSelector').addEventListener('change',async e=>{
   }
 });
 document.getElementById('resetBtn').addEventListener('click',()=>{
-  if(userZoomLevel>1.05){
-    // Zoomed in: return to state-fit
-    userZoomLevel=1;
-    targetZoomScale=baseScale;targetZoomTx=baseTx;targetZoomTy=baseTy;
-    if(smoothZoomRAF){cancelAnimationFrame(smoothZoomRAF);smoothZoomRAF=null;}
-    setZoom(baseScale,baseTx,baseTy,true);
-    updateZoomUI();
-  } else {
-    // At state-fit: show full US
-    resetZoom(true);
-  }
+  resetZoom(true);
 });
 
 // =========================================
