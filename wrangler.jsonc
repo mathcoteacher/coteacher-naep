@@ -2,6 +2,11 @@
   "name": "naep-geo",
   "main": "src/worker.ts",
   "compatibility_date": "2025-08-01",
+  "workers_dev": true,
+  "routes": [
+    "mathcoteacher.com/*",
+    "www.mathcoteacher.com/*"
+  ],
   "assets": {
     "directory": "public",
     "binding": "ASSETS",
