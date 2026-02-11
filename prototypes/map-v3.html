@@ -114,6 +114,23 @@
     100% { transform: translate(-50%, -100%); }
   }
 
+  /* === Explore link (secondary, below map) === */
+  .explore-link {
+    display: inline-block;
+    margin-top: 0.5rem;
+    align-self: center;
+    font-family: inherit; font-size: 0.78rem; font-weight: 600;
+    padding: 0.3rem 0.7rem; border-radius: 6px;
+    border: 2px solid #d4cfc5; background: transparent; color: var(--ink);
+    cursor: pointer; transition: all 0.15s;
+    text-decoration: none;
+    text-align: center;
+  }
+  .explore-link:hover { border-color: var(--accent); color: var(--accent); }
+  @media (prefers-color-scheme: dark) {
+    .explore-link { border-color: var(--dead-dark); color: #e0dbd2; }
+  }
+
   /* === Story side === */
   .anim-container {
     width: 100%;
@@ -172,6 +189,7 @@
       <canvas id="mapCanvas" width="975" height="610"></canvas>
       <div id="pinLayer"></div>
     </div>
+    <a id="exploreBtn" href="/explore.html" class="explore-link">Explore the data &rarr;</a>
   </div>
 
   <!-- Right: Story -->
@@ -181,7 +199,7 @@
     </div>
     <div class="message" id="msg">
       <div class="headline"><span class="num" id="numText">3</span> out of <span class="num" id="denomText">4</span> <span id="stateLabel">American</span> 8th graders are looking at a lifetime of lost potential because they are below proficient in math.</div>
-      <a id="exploreBtn" href="explore.html" class="cta-button">Explore the data &rarr;</a>
+      <a href="#solution" class="cta-button">Math CoTeacher is a solution</a>
     </div>
   </div>
 </div>
@@ -353,20 +371,50 @@ mapCanvas.addEventListener('click', function (e) {
   }
 });
 
-function selectState(code) {
+// =========================================
+// PURE HELPERS (mirrored in src/landing-helpers.ts for unit tests)
+// =========================================
+const ADMIN_PATTERN = /^(township|county|borough|parish|district|division|precinct|unincorporated)\b/i;
+
+function buildExploreHref(state, lat, lon, city) {
+  const params = new URLSearchParams();
+  if (state) params.set('state', state);
+  if (lat != null && lon != null) { params.set('lat', String(lat)); params.set('lon', String(lon)); }
+  if (city) params.set('city', city);
+  const qs = params.toString();
+  return qs ? `/explore.html?${qs}` : '/explore.html';
+}
+
+function extractLocationLabel(geo) {
+  if (geo.localityInfo && geo.localityInfo.informative) {
+    const candidates = geo.localityInfo.informative
+      .filter(e => e.order != null && e.order >= 4 && e.name && !ADMIN_PATTERN.test(e.name.trim()))
+      .sort((a, b) => (b.order || 0) - (a.order || 0));
+    if (candidates.length > 0) return candidates[0].name;
+  }
+  if (geo.city && geo.city.trim()) return geo.city.trim();
+  if (geo.locality && geo.locality.trim() && !ADMIN_PATTERN.test(geo.locality.trim())) return geo.locality.trim();
+  if (geo.principalSubdivision && geo.principalSubdivision.trim()) return geo.principalSubdivision.trim();
+  return '';
+}
+
+// =========================================
+// STATE SELECTION & EXPLORE LINK
+// =========================================
+
+// selectState is called from: map click (manual), IP geo, GPS geo
+// Manual and IP calls pass no locationLabel → headline uses state name
+// GPS calls pass locationLabel → headline uses "City, State"
+function selectState(code, locationLabel) {
   currentState = code;
   updateExploreLink();
-  updateStoryFromNaep(code);
+  updateStoryFromNaep(code, locationLabel);
   pulseHighlight(code);
 }
 
-function updateExploreLink() {
+function updateExploreLink(lat, lon, city) {
   const btn = document.getElementById('exploreBtn');
-  if (currentState) {
-    btn.href = `explore.html?state=${currentState}`;
-  } else {
-    btn.href = 'explore.html';
-  }
+  btn.href = buildExploreHref(currentState, lat, lon, city);
 }
 
 // =========================================
@@ -401,29 +449,32 @@ function initLocationBtn() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const lat = pos.coords.latitude, lon = pos.coords.longitude;
-        let detectedState = null, cityName = '';
+        let detectedState = null, cityName = '', stateName = '';
         try {
           const resp = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
           if (resp.ok) {
             const geo = await resp.json();
             const code = geo.principalSubdivisionCode;
             if (code && code.startsWith('US-')) detectedState = code.slice(3);
-            cityName = geo.city || geo.locality || '';
+            cityName = extractLocationLabel(geo);
+            stateName = geo.principalSubdivision || (detectedState ? STATE_NAMES[detectedState] : '') || '';
           }
         } catch {}
         if (detectedState) {
-          selectState(detectedState);
-          updateExploreLink();
-          // Add lat/lon to explore link
-          const exploreBtn = document.getElementById('exploreBtn');
-          exploreBtn.href = `explore.html?state=${detectedState}&lat=${lat}&lon=${lon}&city=${encodeURIComponent(cityName)}`;
-        }
-        // Drop a pin on the city
-        if (detectedState) {
+          // Build "City, State" label for headline
+          const locationLabel = cityName && stateName ? `${cityName}, ${stateName}` : (stateName || cityName);
+          selectState(detectedState, locationLabel);
+          // Update explore link with GPS coords
+          updateExploreLink(lat, lon, cityName);
+          // Drop a pin on the city
           const projected = projectionFromLatLon(lon, lat);
           if (projected) dropPin(projected[0], projected[1], cityName);
+          // Update button text with city + state
+          const displayName = cityName && stateName ? `${cityName}, ${stateName}` : (cityName || stateName);
+          btn.textContent = displayName ? `My location: ${displayName}` : 'Use my location';
+        } else {
+          btn.textContent = 'Use my location';
         }
-        btn.textContent = cityName ? `My location: ${cityName}` : 'Use my location';
         btn.disabled = false;
       },
       () => { btn.textContent = 'Use my location'; btn.disabled = false; },
@@ -594,7 +645,10 @@ function runAnim() {
 // =========================================
 // UPDATE STORY (from naep.json — no state data file needed)
 // =========================================
-function updateStoryFromNaep(code) {
+// locationLabel: optional override for the headline label.
+// - IP/manual: not provided → uses state name (e.g. "Ohio")
+// - GPS: provided as "City, State" (e.g. "Canal Winchester, Ohio")
+function updateStoryFromNaep(code, locationLabel) {
   if (!naepData) return;
   const entry = code ? naepData.states[code] : naepData.national.US;
   if (!entry) return;
@@ -602,7 +656,9 @@ function updateStoryFromNaep(code) {
   FLICKER_COUNT = entry.numerator || 7;
   document.getElementById('numText').textContent = entry.numerator;
   document.getElementById('denomText').textContent = entry.denominator;
-  document.getElementById('stateLabel').textContent = code ? (STATE_NAMES[code] || code) : 'American';
+  // Use locationLabel if provided (GPS), otherwise state name (IP/manual), otherwise "American"
+  const label = locationLabel || (code ? (STATE_NAMES[code] || code) : 'American');
+  document.getElementById('stateLabel').textContent = label;
   startAnimation();
 }
 

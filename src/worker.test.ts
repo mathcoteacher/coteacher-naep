@@ -1,4 +1,4 @@
-import { SELF } from "miniflare:shared";
+import { SELF } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
 
 describe("NAEP Geo Worker", () => {

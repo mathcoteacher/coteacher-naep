@@ -9,10 +9,13 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest --ui",
     "test:run": "vitest run",
-    "build:search": "node scripts/build-search-index.js"
+    "build:search": "node scripts/build-search-index.js",
+    "test:e2e": "npx playwright test"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.12.11",
     "@cloudflare/workers-types": "^4.20250204.0",
+    "@playwright/test": "^1.58.2",
     "@vitest/ui": "^2.0.4",
     "d3-geo": "^3.1.1",
     "miniflare": "^3.20250718.0",
