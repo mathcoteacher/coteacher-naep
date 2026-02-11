@@ -107,7 +107,7 @@ test.describe("Geolocation Label State Transitions", () => {
     expect(label).toBe("Ohio");
   });
 
-  test("GPS geolocation updates headline to city + state", async ({
+  test("GPS geolocation updates headline to city + state with city-level proficiency", async ({
     page,
   }) => {
     // Block IP geo
@@ -184,6 +184,75 @@ test.describe("Geolocation Label State Transitions", () => {
     // Verify headline uses city + state
     const label = await page.locator("#stateLabel").textContent();
     expect(label).toBe("Canal Winchester, Ohio");
+
+    // Verify city-level proficiency numbers (Canal Winchester = 0.615 → 4 out of 10)
+    const numText = await page.locator("#numText").textContent();
+    const denomText = await page.locator("#denomText").textContent();
+    expect(numText).toBe("4");
+    expect(denomText).toBe("10");
+  });
+
+  test("GPS geolocation falls back to state NAEP for unknown city", async ({
+    page,
+  }) => {
+    // Block IP geo
+    await page.route("**/ipapi.co/**", (route) => route.abort());
+
+    // Mock BigDataCloud with an unknown city
+    await page.route("**/api.bigdatacloud.net/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          city: "",
+          locality: "Nowheresville",
+          principalSubdivision: "Ohio",
+          principalSubdivisionCode: "US-OH",
+          localityInfo: { administrative: [], informative: [] },
+        }),
+      })
+    );
+
+    // Mock navigator.geolocation
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "geolocation", {
+        value: {
+          getCurrentPosition: (success: PositionCallback) => {
+            success({
+              coords: {
+                latitude: 39.84,
+                longitude: -82.8,
+                accuracy: 10,
+                altitude: null,
+                altitudeAccuracy: null,
+                heading: null,
+                speed: null,
+              },
+              timestamp: Date.now(),
+            } as GeolocationPosition);
+          },
+        },
+      });
+    });
+
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    const locBtn = page.locator("#locBtn");
+    await locBtn.click();
+
+    // Wait for button to update
+    await page.waitForFunction(
+      () => document.getElementById("locBtn")?.textContent?.includes("Nowheresville"),
+      null,
+      { timeout: 10000 }
+    );
+
+    // Should fall back to Ohio state NAEP numbers (7 out of 10)
+    const numText = await page.locator("#numText").textContent();
+    const denomText = await page.locator("#denomText").textContent();
+    expect(numText).toBe("7");
+    expect(denomText).toBe("10");
   });
 
   test("manual state click after GPS resets to state-only label", async ({

@@ -83,3 +83,37 @@ export function extractLocationLabel(geo: BigDataCloudResponse): string {
 
   return "";
 }
+
+/**
+ * Convert a proficiency rate (0–1) to a "below proficient" fraction.
+ * Returns { numerator, denominator } where numerator/denominator ≈ (1 - proficiency).
+ * Tries denominators 4, 5, 10 and picks the best fit.
+ * Clamps so we never return 0/Y or Y/Y.
+ */
+export function proficiencyToFraction(proficiency: number): {
+  numerator: number;
+  denominator: number;
+} {
+  const belowProficient = 1 - proficiency;
+  const denominators = [4, 5, 10];
+
+  let bestNum = 0;
+  let bestDen = 10;
+  let bestError = Infinity;
+
+  for (const den of denominators) {
+    const num = Math.round(belowProficient * den);
+    const error = Math.abs(num / den - belowProficient);
+    if (error < bestError || (error === bestError && den > bestDen)) {
+      bestError = error;
+      bestNum = num;
+      bestDen = den;
+    }
+  }
+
+  // Clamp: avoid 0/Y or Y/Y
+  if (bestNum <= 0) bestNum = 1;
+  if (bestNum >= bestDen) bestNum = bestDen - 1;
+
+  return { numerator: bestNum, denominator: bestDen };
+}

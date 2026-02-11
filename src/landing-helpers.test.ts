@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { buildExploreHref, extractLocationLabel } from "./landing-helpers";
+import {
+  buildExploreHref,
+  extractLocationLabel,
+  proficiencyToFraction,
+} from "./landing-helpers";
 
 describe("buildExploreHref", () => {
   it("returns /explore.html with no params when state is null", () => {
@@ -127,5 +131,49 @@ describe("extractLocationLabel", () => {
       principalSubdivision: "Ohio",
     });
     expect(label).toBe("Springfield");
+  });
+});
+
+describe("proficiencyToFraction", () => {
+  it("Canal Winchester: 0.615 proficiency → 4 out of 10", () => {
+    const result = proficiencyToFraction(0.615);
+    expect(result).toEqual({ numerator: 4, denominator: 10 });
+  });
+
+  it("50% proficiency → 5 out of 10 (prefers larger denominator on ties)", () => {
+    const result = proficiencyToFraction(0.5);
+    // belowProficient = 0.5 → exact fit at den=4 (2/4) and den=10 (5/10), prefers 10
+    expect(result).toEqual({ numerator: 5, denominator: 10 });
+  });
+
+  it("75% proficiency → 1 out of 4", () => {
+    const result = proficiencyToFraction(0.75);
+    expect(result).toEqual({ numerator: 1, denominator: 4 });
+  });
+
+  it("20% proficiency → 8 out of 10 (prefers larger denominator on ties)", () => {
+    const result = proficiencyToFraction(0.2);
+    // belowProficient = 0.8 → exact fit at den=5 (4/5) and den=10 (8/10), prefers 10
+    expect(result).toEqual({ numerator: 8, denominator: 10 });
+  });
+
+  it("clamps to avoid 0/Y for very high proficiency", () => {
+    const result = proficiencyToFraction(0.99);
+    expect(result.numerator).toBeGreaterThanOrEqual(1);
+  });
+
+  it("clamps to avoid Y/Y for very low proficiency", () => {
+    const result = proficiencyToFraction(0.01);
+    expect(result.numerator).toBeLessThan(result.denominator);
+  });
+
+  it("0% proficiency → clamps to (den-1)/den", () => {
+    const result = proficiencyToFraction(0);
+    expect(result.numerator).toBe(result.denominator - 1);
+  });
+
+  it("100% proficiency → clamps to 1/den", () => {
+    const result = proficiencyToFraction(1);
+    expect(result.numerator).toBe(1);
   });
 });

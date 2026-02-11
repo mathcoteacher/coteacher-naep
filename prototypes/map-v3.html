@@ -402,6 +402,20 @@ function extractLocationLabel(geo) {
   return '';
 }
 
+function proficiencyToFraction(proficiency) {
+  const belowProficient = 1 - proficiency;
+  const denominators = [4, 5, 10];
+  let bestNum = 0, bestDen = 10, bestError = Infinity;
+  for (const den of denominators) {
+    const num = Math.round(belowProficient * den);
+    const error = Math.abs(num / den - belowProficient);
+    if (error < bestError || (error === bestError && den > bestDen)) { bestError = error; bestNum = num; bestDen = den; }
+  }
+  if (bestNum <= 0) bestNum = 1;
+  if (bestNum >= bestDen) bestNum = bestDen - 1;
+  return { numerator: bestNum, denominator: bestDen };
+}
+
 // =========================================
 // STATE SELECTION & EXPLORE LINK
 // =========================================
@@ -409,10 +423,11 @@ function extractLocationLabel(geo) {
 // selectState is called from: map click (manual), IP geo, GPS geo
 // Manual and IP calls pass no locationLabel → headline uses state name
 // GPS calls pass locationLabel → headline uses "City, State"
-function selectState(code, locationLabel) {
+// customNumerator/customDenominator override NAEP when provided (city-level data)
+function selectState(code, locationLabel, customNumerator, customDenominator) {
   currentState = code;
   updateExploreLink();
-  updateStoryFromNaep(code, locationLabel);
+  updateStoryFromNaep(code, locationLabel, customNumerator, customDenominator);
   pulseHighlight(code);
 }
 
@@ -467,7 +482,24 @@ function initLocationBtn() {
         if (detectedState) {
           // Build "City, State" label for headline
           const locationLabel = cityName && stateName ? `${cityName}, ${stateName}` : (stateName || cityName);
-          selectState(detectedState, locationLabel);
+          // Try to fetch city-level proficiency data
+          let customNum = null, customDen = null;
+          try {
+            const stateResp = await fetch(`../public/data/${detectedState}.json`);
+            if (stateResp.ok) {
+              const stateData = await stateResp.json();
+              if (stateData.cities && cityName) {
+                const cityLower = cityName.toLowerCase();
+                const match = stateData.cities.find(c => c.name.toLowerCase() === cityLower);
+                if (match && match.proficiency != null) {
+                  const frac = proficiencyToFraction(match.proficiency);
+                  customNum = frac.numerator;
+                  customDen = frac.denominator;
+                }
+              }
+            }
+          } catch {}
+          selectState(detectedState, locationLabel, customNum, customDen);
           // Update explore link with GPS coords
           updateExploreLink(lat, lon, cityName);
           // Drop a pin on the city
@@ -496,8 +528,8 @@ function projectionFromLatLon(lon, lat) {
       return [150 + (lon + 170) * 3.5, 490 + (65 - lat) * 5];
     return null;
   }
-  const lambda0 = -96 * Math.PI / 180;
-  const phi0 = 37.5 * Math.PI / 180;
+  const lambda0 = -98.6 * Math.PI / 180;
+  const phi0 = 38.7 * Math.PI / 180;
   const phi1 = 29.5 * Math.PI / 180;
   const phi2 = 45.5 * Math.PI / 180;
   const n = 0.5 * (Math.sin(phi1) + Math.sin(phi2));
@@ -509,7 +541,7 @@ function projectionFromLatLon(lon, lat) {
   const theta = n * (lambda - lambda0);
   const x = rho * Math.sin(theta);
   const y = rho0 - rho * Math.cos(theta);
-  const scale = 1070;
+  const scale = 1300;
   const tx = 487.5, ty = 305;
   return [x * scale + tx, -y * scale + ty];
 }
@@ -652,14 +684,17 @@ function runAnim() {
 // locationLabel: optional override for the headline label.
 // - IP/manual: not provided → uses state name (e.g. "Ohio")
 // - GPS: provided as "City, State" (e.g. "Canal Winchester, Ohio")
-function updateStoryFromNaep(code, locationLabel) {
+// customNumerator/customDenominator: optional city-level overrides
+function updateStoryFromNaep(code, locationLabel, customNumerator, customDenominator) {
   if (!naepData) return;
   const entry = code ? naepData.states[code] : naepData.national.US;
   if (!entry) return;
-  TOTAL = entry.denominator || 10;
-  FLICKER_COUNT = entry.numerator || 7;
-  document.getElementById('numText').textContent = entry.numerator;
-  document.getElementById('denomText').textContent = entry.denominator;
+  const num = customNumerator != null ? customNumerator : entry.numerator;
+  const den = customDenominator != null ? customDenominator : entry.denominator;
+  TOTAL = den || 10;
+  FLICKER_COUNT = num || 7;
+  document.getElementById('numText').textContent = num;
+  document.getElementById('denomText').textContent = den;
   // Use locationLabel if provided (GPS), otherwise state name (IP/manual), otherwise "American"
   const label = locationLabel || (code ? (STATE_NAMES[code] || code) : 'American');
   document.getElementById('stateLabel').textContent = label;
