@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>5 — The Flicker</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f5f6fa; color: #222739;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 1.5rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #181b28; color: #e0e4ec; }
+  }
+  .header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .header h1 { font-size: 1.3rem; }
+  .back { color: #3F5BD8; text-decoration: none; font-size: 0.9rem; }
+  .back:hover { text-decoration: underline; }
+  canvas { border-radius: 12px; max-width: 100%; }
+  .controls { margin-top: 1rem; }
+  button {
+    background: #3F5BD8; color: #fff; border: none; border-radius: 8px;
+    padding: 0.5rem 1.2rem; font-size: 0.9rem; cursor: pointer;
+  }
+  button:hover { background: #334bb5; }
+  .message {
+    margin-top: 1rem; font-size: 1.05rem; text-align: center;
+    opacity: 0; transition: opacity 0.8s; max-width: 500px; line-height: 1.5;
+    color: #222739; font-weight: 500;
+  }
+  .message.visible { opacity: 1; }
+  @media (prefers-color-scheme: dark) { .message { color: #c8cede; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <a class="back" href="index.html">&larr; All Prototypes</a>
+  <h1>5. The Flicker</h1>
+</div>
+<canvas id="c"></canvas>
+<div class="controls"><button id="replay">Replay</button></div>
+<div class="message" id="msg">7 out of 10 Ohio 8th graders are below proficient in math.</div>
+
+<script>
+const ACCENT = '#3F5BD8';
+const GLOW_COLOR = 'rgba(63, 91, 216, 0.3)';
+const DARK_FIGURE = '#1a1d2a';
+const DARK_FIGURE_LIGHT = '#d0d4de';
+let isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const msg = document.getElementById('msg');
+
+let W, H, FW, FH, GAP, SX, SY;
+
+function sizing() {
+  const maxW = Math.min(window.innerWidth - 40, 700);
+  W = maxW; H = Math.round(maxW * 0.55);
+  canvas.width = W; canvas.height = H;
+  FW = Math.round(W * 0.055);
+  FH = Math.round(FW * 2.6);
+  GAP = Math.round((W - FW * 10) / 11);
+  SX = GAP;
+  SY = Math.round((H - FH) / 2) + 10;
+}
+
+function drawFigure(x, y, w, h, color, alpha) {
+  ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = color;
+  const headR = w * 0.42;
+  const cx = x + w / 2, cy = y + headR;
+  ctx.beginPath(); ctx.arc(cx, cy, headR, 0, Math.PI * 2); ctx.fill();
+  const bt = cy + headR + h * 0.04, bb = y + h, bw = w * 0.85, bx = x + (w - bw) / 2;
+  ctx.beginPath();
+  ctx.moveTo(bx + bw * 0.15, bt); ctx.lineTo(bx + bw * 0.85, bt);
+  ctx.quadraticCurveTo(bx + bw, bt, bx + bw, bt + (bb - bt) * 0.15);
+  ctx.lineTo(bx + bw, bb - 6); ctx.quadraticCurveTo(bx + bw, bb, bx + bw - 6, bb);
+  ctx.lineTo(bx + 6, bb); ctx.quadraticCurveTo(bx, bb, bx, bb - 6);
+  ctx.lineTo(bx, bt + (bb - bt) * 0.15); ctx.quadraticCurveTo(bx, bt, bx + bw * 0.15, bt);
+  ctx.fill(); ctx.restore();
+}
+
+function drawGlowingFigure(x, y, w, h, color, alpha, glowRadius) {
+  // Draw glow
+  if (glowRadius > 0 && alpha > 0.1) {
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.3;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = glowRadius;
+    drawFigure(x, y, w, h, color, 1);
+    ctx.restore();
+  }
+  drawFigure(x, y, w, h, color, alpha);
+}
+
+// Build forming pixels
+function buildFormingPixels(fi) {
+  const fx = SX + fi * (FW + GAP);
+  const pSize = Math.max(2, FW * 0.12);
+  const cols = Math.ceil(FW / pSize), rows = Math.ceil(FH / pSize);
+  const off = document.createElement('canvas');
+  off.width = FW + 4; off.height = FH + 4;
+  const oc = off.getContext('2d');
+  oc.fillStyle = ACCENT;
+  const headR = FW * 0.42;
+  const cx = 2 + FW / 2, cy = 2 + headR;
+  oc.beginPath(); oc.arc(cx, cy, headR, 0, Math.PI * 2); oc.fill();
+  const bt = cy + headR + FH * 0.04, bb = 2 + FH, bw = FW * 0.85, bx = 2 + (FW - bw) / 2;
+  oc.beginPath();
+  oc.moveTo(bx + bw * 0.15, bt); oc.lineTo(bx + bw * 0.85, bt);
+  oc.quadraticCurveTo(bx + bw, bt, bx + bw, bt + (bb - bt) * 0.15);
+  oc.lineTo(bx + bw, bb - 6); oc.quadraticCurveTo(bx + bw, bb, bx + bw - 6, bb);
+  oc.lineTo(bx + 6, bb); oc.quadraticCurveTo(bx, bb, bx, bb - 6);
+  oc.lineTo(bx, bt + (bb - bt) * 0.15); oc.quadraticCurveTo(bx, bt, bx + bw * 0.15, bt);
+  oc.fill();
+  const imgD = oc.getImageData(0, 0, off.width, off.height);
+  const pixels = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const px = Math.round(c * pSize + pSize / 2) + 2;
+      const py = Math.round(r * pSize + pSize / 2) + 2;
+      if (px < imgD.width && py < imgD.height) {
+        const idx = (py * imgD.width + px) * 4;
+        if (imgD.data[idx + 3] > 128) {
+          pixels.push({
+            tx: fx + c * pSize, ty: SY + r * pSize,
+            x: fx + c * pSize + (Math.random() - 0.5) * W * 0.5,
+            y: SY + r * pSize + (Math.random() - 0.5) * H * 0.8,
+            size: pSize
+          });
+        }
+      }
+    }
+  }
+  return pixels;
+}
+
+// Flicker order — which figure goes dark when (staggered, not sequential)
+const flickerOrder = [3, 0, 5, 1, 6, 4, 2]; // indices into 0-6, one by one
+const flickerDuration = 0.25; // each flicker takes this long
+const flickerGap = 0.22; // time between flickers starting
+
+let formingPixels = [];
+let startTime = 0;
+let animFrame;
+let textShown = false;
+
+function ease(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+
+function init() {
+  sizing();
+  msg.classList.remove('visible');
+  msg.style.opacity = '0';
+  textShown = false;
+  formingPixels = [];
+  for (let i = 0; i < 10; i++) {
+    formingPixels.push(buildFormingPixels(i));
+  }
+  startTime = performance.now();
+  if (animFrame) cancelAnimationFrame(animFrame);
+  animate();
+}
+
+function animate() {
+  const elapsed = (performance.now() - startTime) / 1000;
+  const bg = isDark ? '#181b28' : '#f5f6fa';
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+  if (elapsed < 1.5) {
+    // Phase 1: forming
+    const t = ease(Math.min(elapsed / 1.5, 1));
+    for (let i = 0; i < 10; i++) {
+      for (const p of formingPixels[i]) {
+        const cx = p.x + (p.tx - p.x) * t;
+        const cy = p.y + (p.ty - p.y) * t;
+        ctx.globalAlpha = 0.3 + 0.7 * t;
+        ctx.fillStyle = ACCENT;
+        ctx.fillRect(cx, cy, p.size, p.size);
+      }
+    }
+    ctx.globalAlpha = 1;
+  } else if (elapsed < 2.0) {
+    // Phase 2: all 10 glowing
+    for (let i = 0; i < 10; i++) {
+      const fx = SX + i * (FW + GAP);
+      // Gentle pulse
+      const pulse = 0.92 + 0.08 * Math.sin(elapsed * 3 + i * 0.7);
+      drawGlowingFigure(fx, SY, FW, FH, ACCENT, pulse, 8);
+    }
+  } else if (elapsed < 4.0) {
+    // Phase 3: flicker out one by one
+    const dt = elapsed - 2.0;
+
+    // Determine state of each of the 7 flickering figures
+    const figureState = new Array(10).fill(1); // 1 = fully on
+
+    for (let k = 0; k < flickerOrder.length; k++) {
+      const fi = flickerOrder[k];
+      const flickerStart = k * flickerGap;
+      const localT = (dt - flickerStart) / flickerDuration;
+
+      if (localT < 0) {
+        figureState[fi] = 1; // not started
+      } else if (localT < 1) {
+        // Flickering: rapid on/off with decreasing brightness
+        const flicks = Math.sin(localT * Math.PI * 8) * 0.5 + 0.5;
+        const decay = 1 - ease(localT);
+        figureState[fi] = flicks * decay;
+      } else {
+        figureState[fi] = 0; // dark
+      }
+    }
+
+    for (let i = 0; i < 10; i++) {
+      const fx = SX + i * (FW + GAP);
+      if (i >= 7) {
+        // Remaining 3 — soft glow
+        const pulse = 0.92 + 0.08 * Math.sin(elapsed * 3 + i * 0.7);
+        drawGlowingFigure(fx, SY, FW, FH, ACCENT, pulse, 8);
+      } else {
+        const state = figureState[i];
+        if (state <= 0) {
+          // Dark/off
+          const darkC = isDark ? DARK_FIGURE : DARK_FIGURE_LIGHT;
+          drawFigure(fx, SY, FW, FH, darkC, 0.4);
+        } else if (state >= 0.95) {
+          const pulse = 0.92 + 0.08 * Math.sin(elapsed * 3 + i * 0.7);
+          drawGlowingFigure(fx, SY, FW, FH, ACCENT, pulse, 8);
+        } else {
+          // Flickering
+          drawGlowingFigure(fx, SY, FW, FH, ACCENT, state, state * 12);
+        }
+      }
+    }
+  } else {
+    // Phase 4: final
+    for (let i = 0; i < 7; i++) {
+      const fx = SX + i * (FW + GAP);
+      const darkC = isDark ? DARK_FIGURE : DARK_FIGURE_LIGHT;
+      drawFigure(fx, SY, FW, FH, darkC, 0.4);
+    }
+    for (let i = 7; i < 10; i++) {
+      const fx = SX + i * (FW + GAP);
+      const pulse = 0.92 + 0.08 * Math.sin(elapsed * 3 + i * 0.7);
+      drawGlowingFigure(fx, SY, FW, FH, ACCENT, pulse, 8);
+    }
+    if (elapsed > 4.3 && !textShown) {
+      textShown = true;
+      msg.style.opacity = '';
+      void msg.offsetHeight;
+      msg.classList.add('visible');
+    }
+  }
+
+  animFrame = requestAnimationFrame(animate);
+}
+
+document.getElementById('replay').addEventListener('click', init);
+window.addEventListener('resize', init);
+init();
+</script>
+</body>
+</html>

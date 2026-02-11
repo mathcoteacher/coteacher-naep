@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Map v3 — Combined Experience</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #f5f0e8; --card-bg: #faf7f2; --ink: #2b2b2b; --muted: #888;
+    --accent: #e8542f; --dead: #c5bfb5; --dead-dark: #3a3632;
+    --bg-dark: #1e1b17; --card-dark: #2a2621;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--ink);
+    min-height: 100vh;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: var(--bg-dark); color: #e0dbd2; }
+  }
+
+  /* === Layout: 60/40 desktop, stacked mobile === */
+  .experience {
+    display: flex;
+    min-height: 100vh;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .map-side {
+    flex: 0 0 62%;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+  }
+  .story-side {
+    flex: 0 0 38%;
+    padding: 1.5rem 1.5rem 1.5rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1rem;
+  }
+  @media (max-width: 900px) {
+    .experience { flex-direction: column; }
+    .map-side { flex: none; }
+    .story-side { flex: none; padding: 1rem; }
+  }
+
+  /* === Map section === */
+  .map-header {
+    display: flex; align-items: center; gap: 0.8rem;
+    margin-bottom: 0.5rem; flex-wrap: wrap;
+  }
+  .map-header a { color: var(--accent); text-decoration: none; font-size: 0.85rem; }
+
+  .toolbar {
+    display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;
+  }
+  .toolbar button, .toolbar select {
+    font-family: inherit; font-size: 0.78rem; font-weight: 600;
+    padding: 0.3rem 0.7rem; border-radius: 6px;
+    border: 2px solid #d4cfc5; background: transparent; color: var(--ink);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .toolbar button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .toolbar button:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+  @media (prefers-color-scheme: dark) {
+    .toolbar button, .toolbar select {
+      border-color: var(--dead-dark); color: #e0dbd2;
+    }
+    .toolbar button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .toolbar select { background: var(--card-dark); }
+  }
+
+  .map-wrapper {
+    position: relative;
+    width: 100%;
+    border-radius: 8px;
+    aspect-ratio: 975 / 610;
+    overflow: hidden;
+    flex: 1;
+    touch-action: none;
+    cursor: grab;
+  }
+  .map-wrapper canvas { display: block; width: 100%; }
+  .points-layer {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  .data-point {
+    position: absolute; pointer-events: auto;
+    cursor: pointer; opacity: 0; padding: 8px;
+    will-change: transform;
+  }
+  .data-point.visible { opacity: 1; }
+  .data-point .dot {
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.7);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .data-point:hover .dot {
+    transform: scale(1.4);
+    box-shadow: 0 2px 8px rgba(232, 84, 47, 0.4);
+  }
+  .data-point .pt-label {
+    position: absolute; left: 50%; top: 100%;
+    transform: translateX(-50%);
+    white-space: nowrap; font-size: 9px; opacity: 0;
+    pointer-events: none; color: var(--ink); font-weight: 600; margin-top: 0;
+    text-shadow: 0 0 3px rgba(245,240,232,0.9), 0 0 6px rgba(245,240,232,0.7);
+  }
+  @media (prefers-color-scheme: dark) {
+    .data-point .pt-label {
+      color: #e0dbd2;
+      text-shadow: 0 0 3px rgba(30,27,23,0.9), 0 0 6px rgba(30,27,23,0.7);
+    }
+  }
+  .data-point.show-label .pt-label { opacity: 1; }
+
+  /* === Zoom UI === */
+  .zoom-hint {
+    position: absolute; bottom: 12px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 27, 23, 0.85); color: #e0dbd2;
+    font-size: 0.75rem; padding: 0.35rem 0.8rem;
+    border-radius: 20px; pointer-events: none;
+    opacity: 0; transition: opacity 0.4s; z-index: 10;
+  }
+  .zoom-hint.visible { opacity: 1; }
+  .zoom-indicator {
+    position: absolute; top: 8px; right: 8px;
+    font-size: 0.72rem; font-weight: 700;
+    color: var(--accent); opacity: 0;
+    transition: opacity 0.3s; pointer-events: none; z-index: 10;
+    background: rgba(245,240,232,0.8); padding: 2px 6px; border-radius: 4px;
+  }
+  @media (prefers-color-scheme: dark) {
+    .zoom-indicator { background: rgba(30,27,23,0.8); }
+  }
+  .zoom-indicator.visible { opacity: 1; }
+
+  /* === Story side === */
+  .anim-container {
+    width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .anim-container canvas { display: block; width: 100%; }
+
+  .message {
+    opacity: 0;
+    transition: opacity 0.8s;
+  }
+  .message.visible { opacity: 1; }
+  .headline {
+    font-size: clamp(1.3rem, 3.5vw, 2rem); font-weight: 800;
+    line-height: 1.15; letter-spacing: -0.02em;
+  }
+  .headline .num { color: var(--accent); }
+  .subline {
+    margin-top: 0.5rem; font-size: clamp(0.82rem, 2vw, 0.95rem);
+    color: var(--muted); line-height: 1.5;
+  }
+  .subsubline {
+    margin-top: 0.4rem; font-size: clamp(0.82rem, 2vw, 0.95rem);
+    color: var(--accent); line-height: 1.5; font-weight: 600;
+  }
+  @media (prefers-color-scheme: dark) {
+    .headline { color: #e0dbd2; }
+    .subline { color: #7a756c; }
+  }
+
+  .explore-prompt {
+    font-size: 0.82rem; color: var(--muted);
+    opacity: 0; transition: opacity 0.6s;
+    margin-top: 0.3rem;
+  }
+  .explore-prompt.visible { opacity: 1; }
+  .explore-prompt strong { color: var(--accent); }
+
+  /* === Preview card === */
+  .preview {
+    position: fixed; top: 0; left: 0; pointer-events: none; z-index: 100;
+    width: 240px; padding: 1rem 1.1rem; border-radius: 12px;
+    background: rgba(30, 27, 23, 0.95); color: #e0dbd2;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2);
+    clip-path: circle(0% at 50% 100%); opacity: 0;
+    transition: clip-path 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s;
+    will-change: transform, clip-path;
+  }
+  .preview.visible { clip-path: circle(150% at 50% 100%); opacity: 1; }
+  .preview .pv-name { font-weight: 700; font-size: 0.92rem; margin-bottom: 0.3rem; line-height: 1.2; }
+  .preview .pv-stat { font-size: 1.2rem; font-weight: 800; color: var(--accent); margin-bottom: 0.15rem; }
+  .preview .pv-desc { font-size: 0.78rem; color: #9a958c; margin-bottom: 0.5rem; }
+  .preview .pv-figures { display: flex; gap: 4px; align-items: flex-end; }
+  .pv-fig { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .pv-fig .head { width: 6px; height: 6px; border-radius: 50%; }
+  .pv-fig .body { width: 8px; height: 12px; border-radius: 2px 2px 1px 1px; }
+  .pv-fig.lit .head, .pv-fig.lit .body { background: var(--accent); }
+  .pv-fig.dim .head, .pv-fig.dim .body { background: var(--dead-dark); }
+  .preview .pv-meta {
+    font-size: 0.72rem; color: #6a655c; margin-top: 0.4rem;
+    border-top: 1px solid #3a3632; padding-top: 0.35rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="experience">
+  <!-- Left: Map -->
+  <div class="map-side">
+    <div class="map-header">
+      <a href="index.html">&larr; Prototypes</a>
+    </div>
+    <div class="toolbar">
+      <select id="stateSelector">
+        <option value="OH" selected>Ohio</option>
+        <option value="IN">Indiana</option>
+        <option value="PA">Pennsylvania</option>
+      </select>
+      <button id="resetBtn">US Map</button>
+      <button class="active" data-layer="cities">Cities</button>
+      <button data-layer="districts">Districts</button>
+      <button data-layer="schools">Schools</button>
+    </div>
+    <div class="map-wrapper" id="mapWrapper">
+      <canvas id="mapCanvas" width="975" height="610"></canvas>
+      <div class="points-layer" id="pointsLayer"></div>
+      <div class="zoom-hint" id="zoomHint">Scroll to zoom</div>
+      <div class="zoom-indicator" id="zoomIndicator"></div>
+    </div>
+  </div>
+
+  <!-- Right: Story -->
+  <div class="story-side">
+    <div class="anim-container">
+      <canvas id="animCanvas"></canvas>
+    </div>
+    <div class="message" id="msg">
+      <div class="headline"><span class="num" id="numText">7</span> out of <span class="num" id="denomText">10</span> <span id="stateLabel">Ohio</span> 8th graders are below proficient in math.</div>
+      <div class="subline">They are deep down a road of a lifetime of lost potential.</div>
+      <div class="subsubline">It doesn't have to be this way.</div>
+    </div>
+    <div class="explore-prompt" id="explorePrompt">
+      <strong>&larr;</strong> Hover over the map to explore individual schools and cities.
+    </div>
+  </div>
+</div>
+
+<!-- Preview card -->
+<div class="preview" id="preview">
+  <div class="pv-name" id="pvName"></div>
+  <div class="pv-stat" id="pvStat"></div>
+  <div class="pv-desc" id="pvDesc"></div>
+  <div class="pv-figures" id="pvFigures"></div>
+  <div class="pv-meta" id="pvMeta"></div>
+</div>
+
+<script>
+// =========================================
+// TOPO DECODER
+// =========================================
+function topoDecode(topology) {
+  const { scale: s, translate: t } = topology.transform || { scale: [1,1], translate: [0,0] };
+  function decArc(arc) { let x=0,y=0; return arc.map(p => { x+=p[0]; y+=p[1]; return [x*s[0]+t[0], y*s[1]+t[1]]; }); }
+  const dec = topology.arcs.map(decArc);
+  function ring(idx) { const c=[]; for(const i of idx){ const a=i>=0?dec[i]:dec[~i].slice().reverse(); for(let j=0;j<a.length;j++) if(j>0||c.length===0) c.push(a[j]); } return c; }
+  return o => topology.objects[o].geometries.map(g => {
+    if(g.type==='Polygon') return{type:'Polygon',coordinates:g.arcs.map(ring),properties:g.properties,id:g.id};
+    if(g.type==='MultiPolygon') return{type:'MultiPolygon',coordinates:g.arcs.map(a=>a.map(ring)),properties:g.properties,id:g.id};
+    return g;
+  });
+}
+
+// =========================================
+// COLORS
+// =========================================
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const ACCENT = '#e8542f';
+const STATE_FILL = isDark ? '#2a2621' : '#e8e3d8';
+const STATE_STROKE = isDark ? '#3a3632' : '#c5bfb5';
+const HIGHLIGHT_FILL = isDark ? '#3a3228' : '#f5e6d0';
+const HIGHLIGHT_STROKE = ACCENT;
+const BG = isDark ? '#1e1b17' : '#f5f0e8';
+const DEAD = isDark ? '#3a3632' : '#c5bfb5';
+
+function profColor(p) {
+  if(p>=0.6) return `hsl(${Math.round(100+(p-0.6)*50)},60%,${isDark?42:45}%)`;
+  if(p>=0.3) return `hsl(${Math.round((p-0.3)*333)},65%,${isDark?40:48}%)`;
+  return `hsl(${Math.round(p*100)},70%,${isDark?36:42}%)`;
+}
+
+// =========================================
+// STATE
+// =========================================
+let stateFeatures=[], stateData=null, currentLayer='cities', currentState='OH';
+let zoomScale=1, zoomTx=0, zoomTy=0, displayScale=1;
+// User zoom state: base = state-fit values, user = multiplier on top
+let baseScale=1, baseTx=0, baseTy=0, userZoomLevel=1;
+let targetZoomScale=1, targetZoomTx=0, targetZoomTy=0;
+let smoothZoomRAF=null, labelTimer=null, zoomHintTimer=null;
+let pointElements=[]; // [{el, pt, labelEl}]
+const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+const FIPS = {
+  AL:'01',AK:'02',AZ:'04',AR:'05',CA:'06',CO:'08',CT:'09',DE:'10',DC:'11',
+  FL:'12',GA:'13',HI:'15',ID:'16',IL:'17',IN:'18',IA:'19',KS:'20',KY:'21',
+  LA:'22',ME:'23',MD:'24',MA:'25',MI:'26',MN:'27',MS:'28',MO:'29',MT:'30',
+  NE:'31',NV:'32',NH:'33',NJ:'34',NM:'35',NY:'36',NC:'37',ND:'38',OH:'39',
+  OK:'40',OR:'41',PA:'42',RI:'44',SC:'45',SD:'46',TN:'47',TX:'48',UT:'49',
+  VT:'50',VA:'51',WA:'53',WV:'54',WI:'55',WY:'56'
+};
+
+const mapCanvas = document.getElementById('mapCanvas');
+const mapCtx = mapCanvas.getContext('2d');
+const wrapper = document.getElementById('mapWrapper');
+const pointsLayer = document.getElementById('pointsLayer');
+const preview = document.getElementById('preview');
+
+// =========================================
+// LOAD DATA
+// =========================================
+async function loadTopology() {
+  stateFeatures = topoDecode(await (await fetch('../public/us-states.json')).json())('states');
+}
+async function loadStateData(code) {
+  stateData = await (await fetch(`../public/data/${code}.json`)).json();
+  alignPointsToState(code);
+}
+
+// The data generation script (prepare-map-data.js) uses D3's default geoAlbersUsa()
+// projection, but the us-states.json topology uses slightly different projection
+// parameters. This remaps data coordinates to align with the topology.
+function alignPointsToState(code) {
+  if (!stateData) return;
+  const bb = getBBox(code);
+  if (!bb) return;
+  const allPts = [
+    ...(stateData.cities || []),
+    ...(stateData.districts || []),
+    ...(stateData.schools || [])
+  ];
+  if (!allPts.length) return;
+  // Compute data bounding box across all layers
+  let dx0=Infinity, dy0=Infinity, dx1=-Infinity, dy1=-Infinity;
+  for (const p of allPts) {
+    if(p.x<dx0)dx0=p.x; if(p.y<dy0)dy0=p.y;
+    if(p.x>dx1)dx1=p.x; if(p.y>dy1)dy1=p.y;
+  }
+  const dw=dx1-dx0, dh=dy1-dy0;
+  if (dw<1||dh<1) return;
+  // Map data bbox → state topology bbox with uniform scale, centered, small padding
+  const pad=0.04;
+  const availW=bb.w*(1-2*pad), availH=bb.h*(1-2*pad);
+  const scale=Math.min(availW/dw, availH/dh);
+  const scaledW=dw*scale, scaledH=dh*scale;
+  const ox=bb.x0+bb.w*pad+(availW-scaledW)/2;
+  const oy=bb.y0+bb.h*pad+(availH-scaledH)/2;
+  for (const p of allPts) {
+    p.x = ox + (p.x - dx0) * scale;
+    p.y = oy + (p.y - dy0) * scale;
+  }
+}
+
+// =========================================
+// MAP RENDERING
+// =========================================
+function renderMap(hlId) {
+  const wW = wrapper.clientWidth;
+  displayScale = wW / 975;
+  mapCanvas.width = 975; mapCanvas.height = 610;
+  mapCanvas.style.width = `${wW}px`;
+  mapCanvas.style.height = `${Math.round(610*displayScale)}px`;
+  mapCtx.clearRect(0,0,975,610);
+  for(const f of stateFeatures){
+    const hi = f.id===hlId;
+    mapCtx.fillStyle = hi?HIGHLIGHT_FILL:STATE_FILL;
+    mapCtx.strokeStyle = hi?HIGHLIGHT_STROKE:STATE_STROKE;
+    mapCtx.lineWidth = hi?2:0.5;
+    const polys = f.type==='MultiPolygon'?f.coordinates:[f.coordinates];
+    for(const poly of polys) for(const ring of poly){
+      mapCtx.beginPath();
+      for(let i=0;i<ring.length;i++){
+        const sx=ring[i][0]*zoomScale+zoomTx, sy=ring[i][1]*zoomScale+zoomTy;
+        if(i===0) mapCtx.moveTo(sx,sy); else mapCtx.lineTo(sx,sy);
+      }
+      mapCtx.closePath(); mapCtx.fill(); mapCtx.stroke();
+    }
+  }
+}
+
+function getBBox(code) {
+  const f = stateFeatures.find(f=>f.id===FIPS[code]);
+  if(!f) return null;
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  const p = f.type==='MultiPolygon'?f.coordinates:[f.coordinates];
+  for(const poly of p) for(const ring of poly) for(const [x,y] of ring){
+    if(x<x0)x0=x;if(y<y0)y0=y;if(x>x1)x1=x;if(y>y1)y1=y;
+  }
+  return {x0,y0,x1,y1,w:x1-x0,h:y1-y0};
+}
+
+// =========================================
+// ZOOM (animated transitions)
+// =========================================
+let zoomAF = null;
+function setZoom(sc,tx,ty,anim){
+  const fs=zoomScale,ftx=zoomTx,fty=zoomTy;
+  if(!anim){
+    zoomScale=sc;zoomTx=tx;zoomTy=ty;
+    renderMap(FIPS[currentState]);renderPoints();resolveLabels();
+    return;
+  }
+  if(zoomAF)cancelAnimationFrame(zoomAF);
+  const st=performance.now(),dur=900;
+  function ease(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+  function tick(now){
+    const e=ease(Math.min((now-st)/dur,1));
+    zoomScale=fs+(sc-fs)*e;zoomTx=ftx+(tx-ftx)*e;zoomTy=fty+(ty-fty)*e;
+    renderMap(FIPS[currentState]);
+    if(pointElements.length>0)repositionPoints();else renderPoints();
+    if((now-st)/dur<1)zoomAF=requestAnimationFrame(tick);
+    else resolveLabels();
+  }
+  zoomAF=requestAnimationFrame(tick);
+}
+
+function zoomToState(code,anim=true){
+  const bb=getBBox(code);if(!bb)return;
+  const pad=30,s=Math.min((975-pad*2)/bb.w,(610-pad*2)/bb.h,14);
+  const tx=975/2-(bb.x0+bb.x1)/2*s, ty=610/2-(bb.y0+bb.y1)/2*s;
+  // Save as base zoom (state-fit)
+  baseScale=s;baseTx=tx;baseTy=ty;userZoomLevel=1;
+  targetZoomScale=s;targetZoomTx=tx;targetZoomTy=ty;
+  if(smoothZoomRAF){cancelAnimationFrame(smoothZoomRAF);smoothZoomRAF=null;}
+  setZoom(s,tx,ty,anim);
+  updateZoomUI();
+  showZoomHint();
+}
+
+function resetZoom(anim=true){
+  userZoomLevel=1;
+  if(smoothZoomRAF){cancelAnimationFrame(smoothZoomRAF);smoothZoomRAF=null;}
+  setZoom(1,0,0,anim);
+  updateZoomUI();
+  hideZoomHint();
+}
+
+// =========================================
+// COORDINATE TRANSFORM
+// =========================================
+function mapToScreen(px,py){
+  return{x:(px*zoomScale+zoomTx)*displayScale, y:(py*zoomScale+zoomTy)*displayScale};
+}
+
+// =========================================
+// USER SCROLL ZOOM
+// =========================================
+wrapper.addEventListener('wheel',function(e){
+  e.preventDefault();
+  if(baseScale<=1)return; // not zoomed to a state yet
+
+  const rect=wrapper.getBoundingClientRect();
+  const mx=(e.clientX-rect.left)/displayScale;
+  const my=(e.clientY-rect.top)/displayScale;
+
+  // Map point under cursor (in raw map coordinates)
+  const mapX=(mx-zoomTx)/zoomScale;
+  const mapY=(my-zoomTy)/zoomScale;
+
+  // Adjust zoom level (normalize deltaMode)
+  let dy=e.deltaY;
+  if(e.deltaMode===1)dy*=20;
+  const newLevel=Math.max(1,Math.min(8,userZoomLevel*(1-dy*0.001)));
+  if(Math.abs(newLevel-userZoomLevel)<0.001)return;
+  userZoomLevel=newLevel;
+
+  // Compute target zoom keeping map point fixed under cursor
+  targetZoomScale=baseScale*userZoomLevel;
+  targetZoomTx=mx-mapX*targetZoomScale;
+  targetZoomTy=my-mapY*targetZoomScale;
+
+  // Cancel any animated zoom transition
+  if(zoomAF){cancelAnimationFrame(zoomAF);zoomAF=null;}
+
+  hideZoomHint();
+  if(!smoothZoomRAF)smoothZoomLoop();
+  updateZoomUI();
+},{passive:false});
+
+function smoothZoomLoop(){
+  const ease=0.15;
+  zoomScale+=(targetZoomScale-zoomScale)*ease;
+  zoomTx+=(targetZoomTx-zoomTx)*ease;
+  zoomTy+=(targetZoomTy-zoomTy)*ease;
+
+  renderMap(FIPS[currentState]);
+  repositionPoints();
+
+  if(Math.abs(zoomScale-targetZoomScale)>0.01||
+     Math.abs(zoomTx-targetZoomTx)>0.1||
+     Math.abs(zoomTy-targetZoomTy)>0.1){
+    smoothZoomRAF=requestAnimationFrame(smoothZoomLoop);
+  } else {
+    zoomScale=targetZoomScale;zoomTx=targetZoomTx;zoomTy=targetZoomTy;
+    renderMap(FIPS[currentState]);repositionPoints();
+    smoothZoomRAF=null;
+    debouncedResolveLabels();
+  }
+}
+
+function debouncedResolveLabels(){
+  clearTimeout(labelTimer);
+  labelTimer=setTimeout(resolveLabels,150);
+}
+
+// =========================================
+// TOUCH PINCH-TO-ZOOM
+// =========================================
+let touchStartDist=0, touchStartZoom=1;
+
+wrapper.addEventListener('touchstart',function(e){
+  if(e.touches.length===2&&baseScale>1){
+    e.preventDefault();
+    const t0=e.touches[0],t1=e.touches[1];
+    touchStartDist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    touchStartZoom=userZoomLevel;
+  }
+},{passive:false});
+
+wrapper.addEventListener('touchmove',function(e){
+  if(e.touches.length===2&&baseScale>1){
+    e.preventDefault();
+    const t0=e.touches[0],t1=e.touches[1];
+    const dist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    const ratio=dist/touchStartDist;
+    const midX=(t0.clientX+t1.clientX)/2;
+    const midY=(t0.clientY+t1.clientY)/2;
+
+    const rect=wrapper.getBoundingClientRect();
+    const cx=(midX-rect.left)/displayScale;
+    const cy=(midY-rect.top)/displayScale;
+    const mapX=(cx-zoomTx)/zoomScale;
+    const mapY=(cy-zoomTy)/zoomScale;
+
+    userZoomLevel=Math.max(1,Math.min(8,touchStartZoom*ratio));
+    targetZoomScale=baseScale*userZoomLevel;
+    targetZoomTx=cx-mapX*targetZoomScale;
+    targetZoomTy=cy-mapY*targetZoomScale;
+
+    if(zoomAF){cancelAnimationFrame(zoomAF);zoomAF=null;}
+    hideZoomHint();
+    if(!smoothZoomRAF)smoothZoomLoop();
+    updateZoomUI();
+  }
+},{passive:false});
+
+wrapper.addEventListener('touchend',function(){
+  debouncedResolveLabels();
+});
+
+// =========================================
+// ZOOM UI (hint + indicator)
+// =========================================
+function showZoomHint(){
+  clearTimeout(zoomHintTimer);
+  const hint=document.getElementById('zoomHint');
+  hint.textContent=isTouch?'Pinch to zoom':'Scroll to zoom';
+  zoomHintTimer=setTimeout(()=>hint.classList.add('visible'),2000);
+}
+
+function hideZoomHint(){
+  clearTimeout(zoomHintTimer);
+  document.getElementById('zoomHint').classList.remove('visible');
+}
+
+function updateZoomUI(){
+  const ind=document.getElementById('zoomIndicator');
+  if(userZoomLevel>1.05){
+    ind.textContent=`${userZoomLevel.toFixed(1)}x`;
+    ind.classList.add('visible');
+  } else {
+    ind.classList.remove('visible');
+  }
+}
+
+// =========================================
+// MAGNETIC HOVER SYSTEM
+// =========================================
+function lerp(a,b,t){return a+(b-a)*t;}
+let pvX=0,pvY=0,pvTX=0,pvTY=0,pvVisible=false,pvActiveEl=null;
+const magState = new WeakMap();
+function getMag(el){if(!magState.has(el))magState.set(el,{dx:0,dy:0,tdx:0,tdy:0});return magState.get(el);}
+
+function hoverLoop(){
+  if(pvVisible){
+    pvX=lerp(pvX,pvTX,0.14); pvY=lerp(pvY,pvTY,0.14);
+    preview.style.transform=`translate(${Math.round(pvX)}px,${Math.round(pvY)}px)`;
+  }
+  if(pvActiveEl){
+    const m=getMag(pvActiveEl);
+    m.dx=lerp(m.dx,m.tdx,0.18); m.dy=lerp(m.dy,m.tdy,0.18);
+    pvActiveEl.style.transform=`translate(calc(-50% + ${m.dx.toFixed(1)}px), calc(-50% + ${m.dy.toFixed(1)}px))`;
+  }
+  requestAnimationFrame(hoverLoop);
+}
+requestAnimationFrame(hoverLoop);
+
+function showPreview(el,pt){
+  pvActiveEl=el;
+  document.getElementById('pvName').textContent=pt.name;
+  document.getElementById('pvStat').textContent=`${Math.round(pt.proficiency*100)}%`;
+  document.getElementById('pvDesc').textContent='proficient in 8th grade math';
+  const figs=document.getElementById('pvFigures');figs.innerHTML='';
+  const lit=Math.round(pt.proficiency*10);
+  for(let i=0;i<10;i++){const f=document.createElement('div');f.className=`pv-fig ${i<lit?'lit':'dim'}`;f.innerHTML='<div class="head"></div><div class="body"></div>';figs.appendChild(f);}
+  let meta='';
+  if(pt.schoolCount)meta=`${pt.schoolCount} school${pt.schoolCount>1?'s':''}`;
+  else if(pt.district)meta=pt.district;
+  document.getElementById('pvMeta').textContent=meta;
+  const r=el.getBoundingClientRect();
+  pvTX=r.left+r.width/2-120; pvTY=r.top-180;
+  if(!pvVisible){pvX=pvTX;pvY=pvTY;preview.style.transform=`translate(${Math.round(pvX)}px,${Math.round(pvY)}px)`;}
+  pvVisible=true;preview.classList.add('visible');
+}
+function movePreview(e,el){
+  if(!pvActiveEl)return;
+  pvTX=Math.max(8,Math.min(e.clientX-120,window.innerWidth-248));
+  pvTY=Math.max(8,e.clientY-190);
+  const r=el.getBoundingClientRect(),dx=e.clientX-r.left-r.width/2,dy=e.clientY-r.top-r.height/2;
+  const m=getMag(el);m.tdx=Math.max(-6,Math.min(6,dx*0.2));m.tdy=Math.max(-6,Math.min(6,dy*0.2));
+}
+function hidePreview(el){
+  pvVisible=false;preview.classList.remove('visible');
+  if(el){const m=getMag(el);m.tdx=0;m.tdy=0;}
+  pvActiveEl=null;
+}
+
+// =========================================
+// DATA POINTS
+// =========================================
+function renderPoints(){
+  pointsLayer.innerHTML='';hidePreview(null);pointElements=[];
+  if(!stateData)return;
+  const pts=(stateData[currentLayer]||[]).slice();
+  const showLabels=currentLayer!=='schools';
+  const dotSize=currentLayer==='schools'?5:currentLayer==='districts'?7:9;
+  const wW=wrapper.clientWidth,wH=wrapper.clientHeight;
+
+  // Sort by schoolCount descending — biggest cities/districts get label priority
+  if(showLabels) pts.sort((a,b)=>(b.schoolCount||0)-(a.schoolCount||0));
+
+  for(const pt of pts){
+    const{x:sx,y:sy}=mapToScreen(pt.x,pt.y);
+    const offScreen=sx<-20||sx>wW+20||sy<-20||sy>wH+20;
+    const el=document.createElement('div');
+    el.className='data-point';el.style.left=`${sx}px`;el.style.top=`${sy}px`;
+    el.style.transform='translate(-50%,-50%)';
+    if(offScreen)el.style.display='none';
+    const dot=document.createElement('div');dot.className='dot';
+    dot.style.width=`${dotSize}px`;dot.style.height=`${dotSize}px`;
+    dot.style.background=profColor(pt.proficiency);el.appendChild(dot);
+    let labelEl=null;
+    if(showLabels){
+      labelEl=document.createElement('div');labelEl.className='pt-label';labelEl.textContent=pt.name;
+      el.appendChild(labelEl);
+      // Don't add show-label here — resolveLabels() decides which ones to show
+    }
+    el.addEventListener('mouseenter',()=>showPreview(el,pt));
+    el.addEventListener('mousemove',e=>movePreview(e,el));
+    el.addEventListener('mouseleave',()=>hidePreview(el));
+    pointsLayer.appendChild(el);
+    pointElements.push({el,pt,labelEl});
+  }
+  requestAnimationFrame(()=>{pointsLayer.querySelectorAll('.data-point').forEach(el=>el.classList.add('visible'));});
+}
+
+function repositionPoints(){
+  const wW=wrapper.clientWidth,wH=wrapper.clientHeight;
+  for(const{el,pt}of pointElements){
+    const{x:sx,y:sy}=mapToScreen(pt.x,pt.y);
+    if(sx<-20||sx>wW+20||sy<-20||sy>wH+20){
+      el.style.display='none';
+    } else {
+      el.style.display='';
+      el.style.left=`${sx}px`;el.style.top=`${sy}px`;
+    }
+  }
+}
+
+// =========================================
+// LABEL COLLISION DETECTION
+// =========================================
+function resolveLabels(){
+  if(currentLayer==='schools')return;
+  const wW=wrapper.clientWidth,wH=wrapper.clientHeight;
+  const placed=[]; // bounding boxes of placed labels
+  // pointElements is already sorted by priority (schoolCount desc)
+  for(const{el,pt,labelEl}of pointElements){
+    if(!labelEl){el.classList.remove('show-label');continue;}
+    const{x:sx,y:sy}=mapToScreen(pt.x,pt.y);
+    if(sx<-20||sx>wW+20||sy<-20||sy>wH+20){
+      el.classList.remove('show-label');continue;
+    }
+    // Estimate label bounding box (centered below dot) with padding to prevent tight clusters
+    const charW=5.8, pad=8;
+    const labelW=pt.name.length*charW+pad*2, labelH=13+pad;
+    const lx=sx-labelW/2, ly=sy+6-pad/2;
+    // Check overlap against already-placed labels
+    let overlaps=false;
+    for(const b of placed){
+      if(lx<b.x+b.w&&lx+labelW>b.x&&ly<b.y+b.h&&ly+labelH>b.y){
+        overlaps=true;break;
+      }
+    }
+    if(!overlaps){
+      el.classList.add('show-label');
+      placed.push({x:lx,y:ly,w:labelW,h:labelH});
+    } else {
+      el.classList.remove('show-label');
+    }
+  }
+}
+
+// =========================================
+// FIGURE ANIMATION (from ember prototype)
+// =========================================
+const animCanvas = document.getElementById('animCanvas');
+const animCtx = animCanvas.getContext('2d');
+let AW,AH,AFW,AFH,AGAP,ASX,ASY;
+let TOTAL=10,FLICKER_COUNT=7;
+let formingPixels=[],animStart=0,animAF,textShown=false;
+
+function animSizing(){
+  const container = animCanvas.parentElement;
+  const maxW = container.clientWidth;
+  AW=maxW; AH=Math.round(maxW*0.38);
+  animCanvas.width=AW; animCanvas.height=AH;
+  AFW=Math.round(AW*0.055); AFH=Math.round(AFW*2.6);
+  AGAP=Math.round((AW-AFW*TOTAL)/(TOTAL+1)); ASX=AGAP;
+  ASY=Math.round((AH-AFH)/2)+10;
+}
+
+function drawFig(x,y,w,h,color,alpha){
+  animCtx.save();animCtx.globalAlpha=alpha;animCtx.fillStyle=color;
+  const hr=w*0.42,cx=x+w/2,cy=y+hr;
+  animCtx.beginPath();animCtx.arc(cx,cy,hr,0,Math.PI*2);animCtx.fill();
+  const bt=cy+hr+h*0.04,bb=y+h,bw=w*0.85,bx=x+(w-bw)/2;
+  animCtx.beginPath();
+  animCtx.moveTo(bx+bw*0.15,bt);animCtx.lineTo(bx+bw*0.85,bt);
+  animCtx.quadraticCurveTo(bx+bw,bt,bx+bw,bt+(bb-bt)*0.15);
+  animCtx.lineTo(bx+bw,bb-6);animCtx.quadraticCurveTo(bx+bw,bb,bx+bw-6,bb);
+  animCtx.lineTo(bx+6,bb);animCtx.quadraticCurveTo(bx,bb,bx,bb-6);
+  animCtx.lineTo(bx,bt+(bb-bt)*0.15);animCtx.quadraticCurveTo(bx,bt,bx+bw*0.15,bt);
+  animCtx.fill();animCtx.restore();
+}
+function drawGlow(x,y,w,h,color,alpha,gr){
+  if(gr>0&&alpha>0.1){animCtx.save();animCtx.globalAlpha=alpha*0.35;animCtx.shadowColor=color;animCtx.shadowBlur=gr;drawFig(x,y,w,h,color,1);animCtx.restore();}
+  drawFig(x,y,w,h,color,alpha);
+}
+
+function buildPixels(fi){
+  const fx=ASX+fi*(AFW+AGAP);
+  const ps=Math.max(2,AFW*0.12);
+  const cols=Math.ceil(AFW/ps),rows=Math.ceil(AFH/ps);
+  const off=document.createElement('canvas');off.width=AFW+4;off.height=AFH+4;
+  const oc=off.getContext('2d');oc.fillStyle=ACCENT;
+  const hr=AFW*0.42,cx=2+AFW/2,cy=2+hr;
+  oc.beginPath();oc.arc(cx,cy,hr,0,Math.PI*2);oc.fill();
+  const bt=cy+hr+AFH*0.04,bb=2+AFH,bw=AFW*0.85,bx=2+(AFW-bw)/2;
+  oc.beginPath();oc.moveTo(bx+bw*0.15,bt);oc.lineTo(bx+bw*0.85,bt);
+  oc.quadraticCurveTo(bx+bw,bt,bx+bw,bt+(bb-bt)*0.15);
+  oc.lineTo(bx+bw,bb-6);oc.quadraticCurveTo(bx+bw,bb,bx+bw-6,bb);
+  oc.lineTo(bx+6,bb);oc.quadraticCurveTo(bx,bb,bx,bb-6);
+  oc.lineTo(bx,bt+(bb-bt)*0.15);oc.quadraticCurveTo(bx,bt,bx+bw*0.15,bt);oc.fill();
+  const imgD=oc.getImageData(0,0,off.width,off.height);
+  const pixels=[];
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const px=Math.round(c*ps+ps/2)+2,py=Math.round(r*ps+ps/2)+2;
+    if(px<imgD.width&&py<imgD.height&&imgD.data[(py*imgD.width+px)*4+3]>128)
+      pixels.push({tx:fx+c*ps,ty:ASY+r*ps,x:fx+c*ps+(Math.random()-0.5)*AW*0.5,y:ASY+r*ps+(Math.random()-0.5)*AH*0.8,size:ps});
+  }
+  return pixels;
+}
+
+const flickerOrder=[3,0,5,1,6,4,2];
+const fDur=0.25,fGap=0.22;
+function animEase(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+
+function startAnimation(){
+  animSizing();
+  const msg=document.getElementById('msg');
+  msg.classList.remove('visible');msg.style.opacity='0';textShown=false;
+  document.getElementById('explorePrompt').classList.remove('visible');
+  formingPixels=[];
+  for(let i=0;i<TOTAL;i++)formingPixels.push(buildPixels(i));
+  animStart=performance.now();
+  if(animAF)cancelAnimationFrame(animAF);
+  runAnim();
+}
+
+function runAnim(){
+  const el=(performance.now()-animStart)/1000;
+  animCtx.fillStyle=BG;animCtx.fillRect(0,0,AW,AH);
+
+  if(el<1.5){
+    const t=animEase(Math.min(el/1.5,1));
+    for(let i=0;i<TOTAL;i++)for(const p of formingPixels[i]){
+      animCtx.globalAlpha=0.3+0.7*t;animCtx.fillStyle=ACCENT;
+      animCtx.fillRect(p.x+(p.tx-p.x)*t,p.y+(p.ty-p.y)*t,p.size,p.size);
+    }
+    animCtx.globalAlpha=1;
+  } else if(el<2.0){
+    for(let i=0;i<TOTAL;i++){
+      const pulse=0.92+0.08*Math.sin(el*3+i*0.7);
+      drawGlow(ASX+i*(AFW+AGAP),ASY,AFW,AFH,ACCENT,pulse,10);
+    }
+  } else if(el<4.0){
+    const dt=el-2.0;
+    const fs=new Array(TOTAL).fill(1);
+    for(let k=0;k<FLICKER_COUNT;k++){
+      const fi=flickerOrder[k%flickerOrder.length],lt=(dt-k*fGap)/fDur;
+      if(lt>=0&&lt<1) fs[fi]=Math.sin(lt*Math.PI*8)*0.5*(1-animEase(lt))+0.5*(1-animEase(lt));
+      else if(lt>=1) fs[fi]=0;
+    }
+    for(let i=0;i<TOTAL;i++){
+      const fx=ASX+i*(AFW+AGAP);
+      if(i>=FLICKER_COUNT) drawGlow(fx,ASY,AFW,AFH,ACCENT,0.92+0.08*Math.sin(el*3+i*0.7),10);
+      else{
+        const s=fs[i];
+        if(s<=0) drawFig(fx,ASY,AFW,AFH,DEAD,0.5);
+        else if(s>=0.95) drawGlow(fx,ASY,AFW,AFH,ACCENT,0.95,10);
+        else drawGlow(fx,ASY,AFW,AFH,ACCENT,s,s*14);
+      }
+    }
+  } else {
+    for(let i=0;i<FLICKER_COUNT;i++) drawFig(ASX+i*(AFW+AGAP),ASY,AFW,AFH,DEAD,0.5);
+    for(let i=FLICKER_COUNT;i<TOTAL;i++) drawGlow(ASX+i*(AFW+AGAP),ASY,AFW,AFH,ACCENT,0.92+0.08*Math.sin(el*3+i*0.7),10);
+    if(el>4.3&&!textShown){
+      textShown=true;
+      const msg=document.getElementById('msg');msg.style.opacity='';void msg.offsetHeight;msg.classList.add('visible');
+      setTimeout(()=>document.getElementById('explorePrompt').classList.add('visible'),600);
+    }
+  }
+  animAF=requestAnimationFrame(runAnim);
+}
+
+// =========================================
+// UPDATE STORY FOR STATE
+// =========================================
+function updateStory(){
+  if(!stateData)return;
+  const n=stateData.naep;
+  TOTAL=n.denominator||10;
+  FLICKER_COUNT=n.numerator||7;
+  document.getElementById('numText').textContent=n.numerator;
+  document.getElementById('denomText').textContent=n.denominator;
+  document.getElementById('stateLabel').textContent=stateData.stateName;
+  startAnimation();
+}
+
+// =========================================
+// CONTROLS
+// =========================================
+document.querySelectorAll('.toolbar button[data-layer]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.toolbar button[data-layer]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');currentLayer=btn.dataset.layer;
+    renderPoints();resolveLabels();
+  });
+});
+document.getElementById('stateSelector').addEventListener('change',async e=>{
+  currentState=e.target.value;
+  await loadStateData(currentState);
+  pointsLayer.innerHTML='';pointElements=[]; // clear old state's points
+  updateStory();
+  zoomToState(currentState,true);
+});
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  if(userZoomLevel>1.05){
+    // Zoomed in: return to state-fit
+    userZoomLevel=1;
+    targetZoomScale=baseScale;targetZoomTx=baseTx;targetZoomTy=baseTy;
+    if(smoothZoomRAF){cancelAnimationFrame(smoothZoomRAF);smoothZoomRAF=null;}
+    setZoom(baseScale,baseTx,baseTy,true);
+    updateZoomUI();
+  } else {
+    // At state-fit: show full US
+    resetZoom(true);
+  }
+});
+
+// =========================================
+// INIT
+// =========================================
+async function init(){
+  await loadTopology();
+  await loadStateData(currentState);
+  renderMap(FIPS[currentState]);
+  renderPoints();
+  resolveLabels();
+  updateStory();
+  setTimeout(()=>zoomToState(currentState,true),600);
+  window.addEventListener('resize',()=>{
+    displayScale=wrapper.clientWidth/975;
+    renderMap(FIPS[currentState]);
+    repositionPoints();
+    resolveLabels();
+    animSizing();
+  });
+}
+init();
+</script>
+</body>
+</html>

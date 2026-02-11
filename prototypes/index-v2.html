@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NAEP — Design Aesthetic Options</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f5f6fa;
+    color: #222739;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #181b28; color: #e0e4ec; }
+    .card { background: #222739; border-color: #333a50; }
+    .card:hover { border-color: #888; }
+    h1 { color: #e0e4ec; }
+    .subtitle { color: #8a95ad; }
+  }
+  h1 { font-size: 1.6rem; margin-bottom: 0.3rem; }
+  .subtitle { color: #5A6B86; margin-bottom: 0.5rem; font-size: 0.95rem; }
+  .note { color: #888; font-size: 0.82rem; margin-bottom: 2rem; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.2rem;
+    max-width: 960px;
+  }
+  .card {
+    display: block;
+    background: #fff;
+    border: 2px solid #e0e4ec;
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .card:hover { border-color: #666; transform: translateY(-2px); }
+  .card h2 { font-size: 1.1rem; margin-bottom: 0.4rem; }
+  .card p { font-size: 0.88rem; line-height: 1.45; color: #5A6B86; }
+  .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: middle; margin-right: 4px; border: 1px solid rgba(0,0,0,0.1); }
+  @media (prefers-color-scheme: dark) {
+    .card p { color: #8a95ad; }
+  }
+</style>
+</head>
+<body>
+  <h1>Design Aesthetic Options</h1>
+  <p class="subtitle">Same Flicker animation, 5 different visual identities</p>
+  <p class="note">Ratio and state will be dynamic from geolocation. Text matches the approved format.</p>
+  <div class="grid">
+    <a class="card" href="a-newsprint.html">
+      <h2>A. Newsprint</h2>
+      <p><span class="swatch" style="background:#1a1a1a"></span><span class="swatch" style="background:#c41e1e"></span><span class="swatch" style="background:#f4f1eb"></span><br>Black ink on warm off-white. One red accent for the numbers. NYT data journalism feel — authoritative, no-nonsense.</p>
+    </a>
+    <a class="card" href="b-bruise.html">
+      <h2>B. Bruise</h2>
+      <p><span class="swatch" style="background:#d4813a"></span><span class="swatch" style="background:#4a2545"></span><span class="swatch" style="background:#1c1020"></span><br>Warm amber figures turn cold bruised purple. Dark background. Visceral and uncomfortable — matches the gravity.</p>
+    </a>
+    <a class="card" href="c-chalk.html">
+      <h2>C. Chalk</h2>
+      <p><span class="swatch" style="background:#e8dcc8"></span><span class="swatch" style="background:#6b8f71"></span><span class="swatch" style="background:#2d3830"></span><br>Chalky white figures on dark green-black board. Muted sage accent. Literally a classroom — where this problem lives.</p>
+    </a>
+    <a class="card" href="d-ember.html">
+      <h2>D. Ember</h2>
+      <p><span class="swatch" style="background:#e8542f"></span><span class="swatch" style="background:#2b2b2b"></span><span class="swatch" style="background:#f5f0e8"></span><br>Hot orange-red on near-white. Figures glow like embers then go to cold charcoal. Urgency without being garish.</p>
+    </a>
+    <a class="card" href="e-blueprint.html">
+      <h2>E. Blueprint</h2>
+      <p><span class="swatch" style="background:#e8e2d4"></span><span class="swatch" style="background:#1e3a5f"></span><span class="swatch" style="background:#0a1628"></span><br>Cream/tan figures on deep navy. Like architectural blueprints. Serious, technical, institutional — but warm, not cold.</p>
+    </a>
+  </div>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NAEP Animation Prototypes</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f5f6fa;
+    color: #222739;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #181b28; color: #e0e4ec; }
+    .card { background: #222739; border-color: #333a50; }
+    .card:hover { border-color: #3F5BD8; }
+    h1 { color: #e0e4ec; }
+    .subtitle { color: #8a95ad; }
+  }
+  h1 { font-size: 1.6rem; margin-bottom: 0.3rem; }
+  .subtitle { color: #5A6B86; margin-bottom: 2rem; font-size: 0.95rem; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.2rem;
+    max-width: 960px;
+  }
+  .card {
+    display: block;
+    background: #fff;
+    border: 2px solid #e0e4ec;
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .card:hover { border-color: #3F5BD8; transform: translateY(-2px); }
+  .card h2 { font-size: 1.1rem; margin-bottom: 0.4rem; color: #3F5BD8; }
+  .card p { font-size: 0.88rem; line-height: 1.45; color: #5A6B86; }
+  @media (prefers-color-scheme: dark) {
+    .card p { color: #8a95ad; }
+  }
+</style>
+</head>
+<body>
+  <h1>NAEP Animation Prototypes</h1>
+  <p class="subtitle">5 concepts for "7 out of 10" — click to view each</p>
+  <div class="grid">
+    <a class="card" href="1-dissolve.html">
+      <h2>1. The Dissolve</h2>
+      <p>Pixels form silhouettes. 7 crumble back into pixels that scatter like dust. Empty gaps remain.</p>
+    </a>
+    <a class="card" href="2-shadow.html">
+      <h2>2. The Shadow</h2>
+      <p>A dark wave sweeps left to right, turning 7 to shadow. The 3 remaining look isolated.</p>
+    </a>
+    <a class="card" href="3-drain.html">
+      <h2>3. The Drain</h2>
+      <p>Color drains downward out of 7 like paint running down a wall, leaving them gray.</p>
+    </a>
+    <a class="card" href="4-blur.html">
+      <h2>4. The Blur</h2>
+      <p>7 silhouettes re-pixelate back into unrecognizable noise. 3 stay sharp and clear.</p>
+    </a>
+    <a class="card" href="5-flicker.html">
+      <h2>5. The Flicker</h2>
+      <p>7 silhouettes flicker and go dark one by one, like bulbs burning out.</p>
+    </a>
+  </div>
+</body>
+</html>

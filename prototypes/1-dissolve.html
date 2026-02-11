@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1 — The Dissolve</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f5f6fa; color: #222739;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 1.5rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #181b28; color: #e0e4ec; }
+  }
+  .header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .header h1 { font-size: 1.3rem; }
+  .back { color: #3F5BD8; text-decoration: none; font-size: 0.9rem; }
+  .back:hover { text-decoration: underline; }
+  canvas { border-radius: 12px; max-width: 100%; }
+  .controls { margin-top: 1rem; display: flex; gap: 0.8rem; align-items: center; }
+  button {
+    background: #3F5BD8; color: #fff; border: none; border-radius: 8px;
+    padding: 0.5rem 1.2rem; font-size: 0.9rem; cursor: pointer;
+  }
+  button:hover { background: #334bb5; }
+  .message {
+    margin-top: 1rem; font-size: 1.05rem; text-align: center;
+    opacity: 0; transition: opacity 0.8s;
+    max-width: 500px; line-height: 1.5;
+    color: #222739; font-weight: 500;
+  }
+  .message.visible { opacity: 1; }
+  @media (prefers-color-scheme: dark) {
+    .message { color: #c8cede; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <a class="back" href="index.html">&larr; All Prototypes</a>
+  <h1>1. The Dissolve</h1>
+</div>
+<canvas id="c"></canvas>
+<div class="controls">
+  <button id="replay">Replay</button>
+</div>
+<div class="message" id="msg">7 out of 10 Ohio 8th graders are below proficient in math.</div>
+
+<script>
+const ACCENT = '#3F5BD8';
+const DARK = '#222739';
+const MUTED = '#5A6B86';
+const GRAY = '#c0c7d6';
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const msg = document.getElementById('msg');
+
+let W, H, FIGURE_W, FIGURE_H, GAP, START_X, START_Y;
+let isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+function sizing() {
+  const maxW = Math.min(window.innerWidth - 40, 700);
+  W = maxW;
+  H = Math.round(maxW * 0.55);
+  canvas.width = W;
+  canvas.height = H;
+  FIGURE_W = Math.round(W * 0.055);
+  FIGURE_H = Math.round(FIGURE_W * 2.6);
+  GAP = Math.round((W - FIGURE_W * 10) / 11);
+  START_X = GAP;
+  START_Y = Math.round((H - FIGURE_H) / 2) + 10;
+}
+
+// Draw a simple human silhouette at (x, y)
+function drawFigure(x, y, w, h, color, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  const headR = w * 0.42;
+  const headCX = x + w / 2;
+  const headCY = y + headR;
+  ctx.beginPath();
+  ctx.arc(headCX, headCY, headR, 0, Math.PI * 2);
+  ctx.fill();
+  // body
+  const bodyTop = headCY + headR + h * 0.04;
+  const bodyBot = y + h;
+  const bodyW = w * 0.85;
+  const bx = x + (w - bodyW) / 2;
+  ctx.beginPath();
+  ctx.moveTo(bx + bodyW * 0.15, bodyTop);
+  ctx.lineTo(bx + bodyW * 0.85, bodyTop);
+  ctx.quadraticCurveTo(bx + bodyW, bodyTop, bx + bodyW, bodyTop + (bodyBot - bodyTop) * 0.15);
+  ctx.lineTo(bx + bodyW, bodyBot - 6);
+  ctx.quadraticCurveTo(bx + bodyW, bodyBot, bx + bodyW - 6, bodyBot);
+  ctx.lineTo(bx + 6, bodyBot);
+  ctx.quadraticCurveTo(bx, bodyBot, bx, bodyBot - 6);
+  ctx.lineTo(bx, bodyTop + (bodyBot - bodyTop) * 0.15);
+  ctx.quadraticCurveTo(bx, bodyTop, bx + bodyW * 0.15, bodyTop);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Pixel particle system for dissolve effect
+class Particle {
+  constructor(x, y, color) {
+    this.x = x; this.y = y;
+    this.ox = x; this.oy = y;
+    this.color = color;
+    this.size = Math.max(2, FIGURE_W * 0.12);
+    this.vx = (Math.random() - 0.5) * 3;
+    this.vy = Math.random() * 2 + 1;
+    this.gravity = 0.06 + Math.random() * 0.04;
+    this.alpha = 1;
+    this.decay = 0.008 + Math.random() * 0.012;
+    this.active = false;
+  }
+  update() {
+    if (!this.active) return;
+    this.vy += this.gravity;
+    this.x += this.vx;
+    this.y += this.vy;
+    this.alpha -= this.decay;
+    if (this.alpha < 0) this.alpha = 0;
+  }
+  draw() {
+    if (this.alpha <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = this.alpha;
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x, this.y, this.size, this.size);
+    ctx.restore();
+  }
+}
+
+// Build pixel grid for a figure
+function buildParticles(figIndex) {
+  const fx = START_X + figIndex * (FIGURE_W + GAP);
+  const fy = START_Y;
+  const particles = [];
+  const pSize = Math.max(2, FIGURE_W * 0.12);
+  const cols = Math.ceil(FIGURE_W / pSize);
+  const rows = Math.ceil(FIGURE_H / pSize);
+  // Sample which pixels are inside the figure
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = FIGURE_W + 4; offCanvas.height = FIGURE_H + 4;
+  const offCtx = offCanvas.getContext('2d');
+  drawFigureOnCtx(offCtx, 2, 2, FIGURE_W, FIGURE_H, ACCENT);
+  const imgData = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const px = Math.round(c * pSize + pSize / 2) + 2;
+      const py = Math.round(r * pSize + pSize / 2) + 2;
+      if (px < imgData.width && py < imgData.height) {
+        const idx = (py * imgData.width + px) * 4;
+        if (imgData.data[idx + 3] > 128) {
+          particles.push(new Particle(fx + c * pSize, fy + r * pSize, ACCENT));
+        }
+      }
+    }
+  }
+  return particles;
+}
+
+function drawFigureOnCtx(c, x, y, w, h, color) {
+  c.fillStyle = color;
+  const headR = w * 0.42;
+  const headCX = x + w / 2;
+  const headCY = y + headR;
+  c.beginPath();
+  c.arc(headCX, headCY, headR, 0, Math.PI * 2);
+  c.fill();
+  const bodyTop = headCY + headR + h * 0.04;
+  const bodyBot = y + h;
+  const bodyW = w * 0.85;
+  const bx = x + (w - bodyW) / 2;
+  c.beginPath();
+  c.moveTo(bx + bodyW * 0.15, bodyTop);
+  c.lineTo(bx + bodyW * 0.85, bodyTop);
+  c.quadraticCurveTo(bx + bodyW, bodyTop, bx + bodyW, bodyTop + (bodyBot - bodyTop) * 0.15);
+  c.lineTo(bx + bodyW, bodyBot - 6);
+  c.quadraticCurveTo(bx + bodyW, bodyBot, bx + bodyW - 6, bodyBot);
+  c.lineTo(bx + 6, bodyBot);
+  c.quadraticCurveTo(bx, bodyBot, bx, bodyBot - 6);
+  c.lineTo(bx, bodyTop + (bodyBot - bodyTop) * 0.15);
+  c.quadraticCurveTo(bx, bodyTop, bx + bodyW * 0.15, bodyTop);
+  c.fill();
+}
+
+// Phase 1: pixel cloud → figures
+// We pre-scatter particles and lerp them into position
+let pixelSets = []; // one array of {x,y,tx,ty,color} per figure
+function buildFormingPixels(figIndex) {
+  const fx = START_X + figIndex * (FIGURE_W + GAP);
+  const fy = START_Y;
+  const pSize = Math.max(2, FIGURE_W * 0.12);
+  const cols = Math.ceil(FIGURE_W / pSize);
+  const rows = Math.ceil(FIGURE_H / pSize);
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = FIGURE_W + 4; offCanvas.height = FIGURE_H + 4;
+  const offCtx = offCanvas.getContext('2d');
+  drawFigureOnCtx(offCtx, 2, 2, FIGURE_W, FIGURE_H, ACCENT);
+  const imgData = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+  const pixels = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const px = Math.round(c * pSize + pSize / 2) + 2;
+      const py = Math.round(r * pSize + pSize / 2) + 2;
+      if (px < imgData.width && py < imgData.height) {
+        const idx = (py * imgData.width + px) * 4;
+        if (imgData.data[idx + 3] > 128) {
+          pixels.push({
+            tx: fx + c * pSize, ty: fy + r * pSize,
+            x: fx + c * pSize + (Math.random() - 0.5) * W * 0.5,
+            y: fy + r * pSize + (Math.random() - 0.5) * H * 0.8,
+            size: pSize
+          });
+        }
+      }
+    }
+  }
+  return pixels;
+}
+
+// Animation state
+let startTime = 0;
+let dissolveParticles = []; // particles for the 7 dissolving figures
+let animFrame;
+let textShown = false;
+
+function init() {
+  sizing();
+  msg.classList.remove('visible');
+  msg.style.opacity = '0';
+  textShown = false;
+  pixelSets = [];
+  dissolveParticles = [];
+  for (let i = 0; i < 10; i++) {
+    pixelSets.push(buildFormingPixels(i));
+  }
+  // Build dissolve particles for figures 0-6 (the 7 that dissolve)
+  for (let i = 0; i < 7; i++) {
+    dissolveParticles.push(buildParticles(i));
+  }
+  startTime = performance.now();
+  if (animFrame) cancelAnimationFrame(animFrame);
+  animate();
+}
+
+function ease(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+
+function animate() {
+  const elapsed = (performance.now() - startTime) / 1000;
+  const bg = isDark ? '#181b28' : '#f5f6fa';
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  const pSize = Math.max(2, FIGURE_W * 0.12);
+
+  if (elapsed < 1.5) {
+    // Phase 1: forming
+    const t = ease(Math.min(elapsed / 1.5, 1));
+    for (let i = 0; i < 10; i++) {
+      const pixels = pixelSets[i];
+      ctx.fillStyle = ACCENT;
+      for (const p of pixels) {
+        const cx = p.x + (p.tx - p.x) * t;
+        const cy = p.y + (p.ty - p.y) * t;
+        ctx.globalAlpha = 0.3 + 0.7 * t;
+        ctx.fillRect(cx, cy, p.size, p.size);
+      }
+    }
+    ctx.globalAlpha = 1;
+  } else if (elapsed < 2.0) {
+    // Phase 2: pause — all 10 solid
+    for (let i = 0; i < 10; i++) {
+      const fx = START_X + i * (FIGURE_W + GAP);
+      drawFigure(fx, START_Y, FIGURE_W, FIGURE_H, ACCENT, 1);
+    }
+  } else if (elapsed < 4.0) {
+    // Phase 3: dissolve — figures 0-6 break apart
+    const dt = (elapsed - 2.0) / 2.0; // 0→1
+
+    // Draw the 3 remaining (indices 7,8,9) solid
+    for (let i = 7; i < 10; i++) {
+      const fx = START_X + i * (FIGURE_W + GAP);
+      drawFigure(fx, START_Y, FIGURE_W, FIGURE_H, ACCENT, 1);
+    }
+
+    // For 0-6, transition from solid figure to particles
+    for (let i = 0; i < 7; i++) {
+      // Stagger start: each figure starts dissolving slightly later
+      const stagger = i * 0.06;
+      const localT = Math.max(0, Math.min((dt - stagger) / (1 - stagger * 2), 1));
+
+      if (localT < 0.3) {
+        // Still mostly solid, starting to break
+        const fx = START_X + i * (FIGURE_W + GAP);
+        drawFigure(fx, START_Y, FIGURE_W, FIGURE_H, ACCENT, 1 - localT * 2);
+      }
+
+      // Activate and update particles
+      const parts = dissolveParticles[i];
+      if (localT > 0.1) {
+        const activeFrac = Math.min((localT - 0.1) / 0.5, 1);
+        const count = Math.floor(activeFrac * parts.length);
+        for (let j = 0; j < count; j++) {
+          if (!parts[j].active) parts[j].active = true;
+        }
+      }
+      for (const p of parts) {
+        p.update();
+        p.draw();
+      }
+    }
+  } else {
+    // Phase 4: final state + text
+    for (let i = 7; i < 10; i++) {
+      const fx = START_X + i * (FIGURE_W + GAP);
+      drawFigure(fx, START_Y, FIGURE_W, FIGURE_H, ACCENT, 1);
+    }
+    // Draw ghost outlines for missing figures
+    for (let i = 0; i < 7; i++) {
+      const fx = START_X + i * (FIGURE_W + GAP);
+      drawFigure(fx, START_Y, FIGURE_W, FIGURE_H, isDark ? '#2e3348' : '#d0d5e2', 1);
+    }
+    // A few straggling particles in the first second after dissolve
+    if (elapsed < 5.5) {
+      for (let i = 0; i < 7; i++) {
+        for (const p of dissolveParticles[i]) {
+          p.update();
+          p.draw();
+        }
+      }
+    }
+    if (elapsed > 4.3 && !textShown) {
+      textShown = true;
+      msg.style.opacity = '';
+      // Force reflow before adding class to ensure transition plays
+      void msg.offsetHeight;
+      msg.classList.add('visible');
+    }
+  }
+
+  animFrame = requestAnimationFrame(animate);
+}
+
+document.getElementById('replay').addEventListener('click', init);
+window.addEventListener('resize', () => { init(); });
+init();
+</script>
+</body>
+</html>

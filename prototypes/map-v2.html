@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Map v2 — Magnetic Hover Reveal</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f5f0e8; color: #2b2b2b;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 1rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1e1b17; color: #e0dbd2; }
+  }
+  header {
+    width: 100%; max-width: 975px; margin-bottom: 0.8rem;
+    display: flex; align-items: center; gap: 1rem;
+  }
+  header a { color: #e8542f; text-decoration: none; font-size: 0.9rem; }
+  header h1 { font-size: 1.1rem; font-weight: 700; }
+
+  .controls {
+    display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center;
+  }
+  .controls button, .state-select select, .state-select .reset-btn {
+    font-family: inherit; font-size: 0.82rem; font-weight: 600;
+    padding: 0.35rem 0.9rem; border-radius: 6px;
+    border: 2px solid #d4cfc5; background: transparent; color: #2b2b2b;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .controls button.active {
+    background: #e8542f; color: #fff; border-color: #e8542f;
+  }
+  .controls button:hover:not(.active) {
+    border-color: #e8542f; color: #e8542f;
+  }
+  @media (prefers-color-scheme: dark) {
+    .controls button, .state-select select, .state-select .reset-btn {
+      border-color: #3a3632; color: #e0dbd2;
+    }
+    .controls button.active { background: #e8542f; border-color: #e8542f; color: #fff; }
+    .controls button:hover:not(.active) { border-color: #e8542f; color: #e8542f; }
+    .state-select select { background: #2a2621; }
+  }
+
+  .toolbar {
+    display: flex; gap: 1rem; align-items: center; margin-bottom: 0.8rem;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .state-select {
+    display: flex; gap: 0.4rem; align-items: center;
+  }
+  .state-select label { font-size: 0.82rem; font-weight: 600; }
+
+  .map-wrapper {
+    position: relative;
+    width: 975px; max-width: 100%;
+    border-radius: 8px;
+    aspect-ratio: 975 / 610;
+    overflow: hidden;
+  }
+
+  canvas { display: block; width: 100%; }
+
+  .points-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+
+  .data-point {
+    position: absolute;
+    pointer-events: auto;
+    cursor: pointer;
+    opacity: 0;
+    padding: 8px;
+    /* will-change for GPU compositing of magnetic transform */
+    will-change: transform;
+  }
+  .data-point.visible { opacity: 1; }
+
+  .data-point .dot {
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.7);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+
+  .data-point:hover .dot {
+    transform: scale(1.4);
+    box-shadow: 0 2px 8px rgba(232, 84, 47, 0.4);
+  }
+
+  .data-point .pt-label {
+    position: absolute;
+    left: 50%; top: 100%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 9px;
+    opacity: 0;
+    pointer-events: none;
+    color: #2b2b2b;
+    font-weight: 600;
+    margin-top: 0;
+    text-shadow: 0 0 3px rgba(245,240,232,0.9), 0 0 6px rgba(245,240,232,0.7);
+  }
+  @media (prefers-color-scheme: dark) {
+    .data-point .pt-label {
+      color: #e0dbd2;
+      text-shadow: 0 0 3px rgba(30,27,23,0.9), 0 0 6px rgba(30,27,23,0.7);
+    }
+  }
+  .data-point.show-label .pt-label { opacity: 1; }
+
+  .info-bar {
+    margin-top: 0.8rem;
+    font-size: clamp(0.85rem, 2.5vw, 1.05rem);
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.5s;
+    font-weight: 600;
+  }
+  .info-bar.visible { opacity: 1; }
+  .info-bar .num { color: #e8542f; font-weight: 800; }
+
+  /* === Preview Card (Magnetic Hover Reveal) === */
+  .preview {
+    position: fixed;
+    top: 0; left: 0;
+    pointer-events: none;
+    z-index: 100;
+    width: 240px;
+    padding: 1rem 1.1rem;
+    border-radius: 12px;
+    background: rgba(30, 27, 23, 0.95);
+    color: #e0dbd2;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2);
+    /* clip-path for reveal animation */
+    clip-path: circle(0% at 50% 100%);
+    opacity: 0;
+    transition: clip-path 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.2s;
+    will-change: transform, clip-path;
+  }
+  .preview.visible {
+    clip-path: circle(150% at 50% 100%);
+    opacity: 1;
+  }
+
+  .preview .pv-name {
+    font-weight: 700;
+    font-size: 0.92rem;
+    margin-bottom: 0.3rem;
+    line-height: 1.2;
+  }
+  .preview .pv-stat {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #e8542f;
+    margin-bottom: 0.15rem;
+  }
+  .preview .pv-desc {
+    font-size: 0.78rem;
+    color: #9a958c;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Mini student figure row */
+  .preview .pv-figures {
+    display: flex;
+    gap: 4px;
+    align-items: flex-end;
+  }
+  .pv-fig {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+  }
+  .pv-fig .head {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+  }
+  .pv-fig .body {
+    width: 8px; height: 12px;
+    border-radius: 2px 2px 1px 1px;
+  }
+  .pv-fig.lit .head, .pv-fig.lit .body { background: #e8542f; }
+  .pv-fig.dim .head, .pv-fig.dim .body { background: #3a3632; }
+
+  .preview .pv-meta {
+    font-size: 0.72rem;
+    color: #6a655c;
+    margin-top: 0.4rem;
+    border-top: 1px solid #3a3632;
+    padding-top: 0.35rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html">&larr; All Prototypes</a>
+  <h1>Map v2 — Magnetic Hover Reveal</h1>
+</header>
+
+<div class="toolbar">
+  <div class="state-select">
+    <label for="stateSelector">State:</label>
+    <select id="stateSelector">
+      <option value="OH" selected>Ohio</option>
+      <option value="IN">Indiana</option>
+      <option value="PA">Pennsylvania</option>
+    </select>
+    <button class="reset-btn" id="resetBtn">Reset</button>
+  </div>
+  <div class="controls">
+    <button class="active" data-layer="cities">Cities</button>
+    <button data-layer="districts">Districts</button>
+    <button data-layer="schools">Schools</button>
+  </div>
+</div>
+
+<div class="map-wrapper" id="mapWrapper">
+  <canvas id="mapCanvas" width="975" height="610"></canvas>
+  <div class="points-layer" id="pointsLayer"></div>
+</div>
+
+<div class="info-bar" id="infoBar">
+  <span class="num" id="naepNum"></span> <span id="naepText"></span>
+</div>
+
+<!-- Shared preview card -->
+<div class="preview" id="preview">
+  <div class="pv-name" id="pvName"></div>
+  <div class="pv-stat" id="pvStat"></div>
+  <div class="pv-desc" id="pvDesc"></div>
+  <div class="pv-figures" id="pvFigures"></div>
+  <div class="pv-meta" id="pvMeta"></div>
+</div>
+
+<script>
+// === TopoJSON decoder (same as v1) ===
+function topoDecode(topology) {
+  const { transform } = topology;
+  const { scale: s, translate: t } = transform || { scale: [1, 1], translate: [0, 0] };
+  function decodeArc(arc) {
+    let x = 0, y = 0;
+    return arc.map(p => { x += p[0]; y += p[1]; return [x * s[0] + t[0], y * s[1] + t[1]]; });
+  }
+  const decoded = topology.arcs.map(decodeArc);
+  function ring(indices) {
+    const c = [];
+    for (const idx of indices) {
+      const a = idx >= 0 ? decoded[idx] : decoded[~idx].slice().reverse();
+      for (let i = 0; i < a.length; i++) { if (i > 0 || c.length === 0) c.push(a[i]); }
+    }
+    return c;
+  }
+  return function(objName) {
+    return topology.objects[objName].geometries.map(g => {
+      if (g.type === 'Polygon') return { type: 'Polygon', coordinates: g.arcs.map(ring), properties: g.properties, id: g.id };
+      if (g.type === 'MultiPolygon') return { type: 'MultiPolygon', coordinates: g.arcs.map(a => a.map(ring)), properties: g.properties, id: g.id };
+      return g;
+    });
+  };
+}
+
+// === Colors ===
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const ACCENT = '#e8542f';
+const STATE_FILL = isDark ? '#2a2621' : '#e8e3d8';
+const STATE_STROKE = isDark ? '#3a3632' : '#c5bfb5';
+const HIGHLIGHT_FILL = isDark ? '#3a3228' : '#f5e6d0';
+const HIGHLIGHT_STROKE = ACCENT;
+
+function profColor(p) {
+  if (p >= 0.6) return `hsl(${Math.round(100 + (p - 0.6) * 50)}, 60%, ${isDark ? 42 : 45}%)`;
+  if (p >= 0.3) return `hsl(${Math.round((p - 0.3) * 333)}, 65%, ${isDark ? 40 : 48}%)`;
+  return `hsl(${Math.round(p * 100)}, 70%, ${isDark ? 36 : 42}%)`;
+}
+
+// === State ===
+let stateFeatures = [];
+let stateData = null;
+let currentLayer = 'cities';
+let currentState = 'OH';
+let zoomScale = 1, zoomTx = 0, zoomTy = 0;
+let displayScale = 1;
+
+const canvas = document.getElementById('mapCanvas');
+const ctx = canvas.getContext('2d');
+const wrapper = document.getElementById('mapWrapper');
+const pointsLayer = document.getElementById('pointsLayer');
+const preview = document.getElementById('preview');
+
+const FIPS = {
+  AL:'01',AK:'02',AZ:'04',AR:'05',CA:'06',CO:'08',CT:'09',DE:'10',DC:'11',
+  FL:'12',GA:'13',HI:'15',ID:'16',IL:'17',IN:'18',IA:'19',KS:'20',KY:'21',
+  LA:'22',ME:'23',MD:'24',MA:'25',MI:'26',MN:'27',MS:'28',MO:'29',MT:'30',
+  NE:'31',NV:'32',NH:'33',NJ:'34',NM:'35',NY:'36',NC:'37',ND:'38',OH:'39',
+  OK:'40',OR:'41',PA:'42',RI:'44',SC:'45',SD:'46',TN:'47',TX:'48',UT:'49',
+  VT:'50',VA:'51',WA:'53',WV:'54',WI:'55',WY:'56'
+};
+
+// === Load ===
+async function loadTopology() {
+  const res = await fetch('../public/us-states.json');
+  stateFeatures = topoDecode(await res.json())('states');
+}
+async function loadStateData(code) {
+  stateData = await (await fetch(`../public/data/${code}.json`)).json();
+}
+
+// === Render map ===
+function renderMap(highlightId) {
+  const wW = wrapper.clientWidth;
+  displayScale = wW / 975;
+  canvas.width = 975; canvas.height = 610;
+  canvas.style.width = `${wW}px`;
+  canvas.style.height = `${Math.round(610 * displayScale)}px`;
+  ctx.clearRect(0, 0, 975, 610);
+
+  for (const feat of stateFeatures) {
+    const hi = feat.id === highlightId;
+    ctx.fillStyle = hi ? HIGHLIGHT_FILL : STATE_FILL;
+    ctx.strokeStyle = hi ? HIGHLIGHT_STROKE : STATE_STROKE;
+    ctx.lineWidth = hi ? 2 : 0.5;
+    const polys = feat.type === 'MultiPolygon' ? feat.coordinates : [feat.coordinates];
+    for (const poly of polys) {
+      for (const ring of poly) {
+        ctx.beginPath();
+        for (let i = 0; i < ring.length; i++) {
+          const sx = ring[i][0] * zoomScale + zoomTx;
+          const sy = ring[i][1] * zoomScale + zoomTy;
+          if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+        }
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    }
+  }
+}
+
+function getBBox(code) {
+  const feat = stateFeatures.find(f => f.id === FIPS[code]);
+  if (!feat) return null;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const polys = feat.type === 'MultiPolygon' ? feat.coordinates : [feat.coordinates];
+  for (const poly of polys) for (const ring of poly) for (const [x, y] of ring) {
+    if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y;
+  }
+  return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
+}
+
+// === Zoom ===
+let animFrame = null;
+function setZoom(scale, tx, ty, animate) {
+  const fs = zoomScale, ftx = zoomTx, fty = zoomTy;
+  if (!animate) { zoomScale = scale; zoomTx = tx; zoomTy = ty; renderMap(FIPS[currentState]); renderPoints(); return; }
+  if (animFrame) cancelAnimationFrame(animFrame);
+  const start = performance.now(), dur = 900;
+  function ease(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2; }
+  function tick(now) {
+    const e = ease(Math.min((now - start) / dur, 1));
+    zoomScale = fs + (scale - fs) * e; zoomTx = ftx + (tx - ftx) * e; zoomTy = fty + (ty - fty) * e;
+    renderMap(FIPS[currentState]); renderPoints();
+    if ((now - start) / dur < 1) animFrame = requestAnimationFrame(tick);
+  }
+  animFrame = requestAnimationFrame(tick);
+}
+function zoomToState(code, anim = true) {
+  const bb = getBBox(code); if (!bb) return;
+  const pad = 30, s = Math.min((975 - pad*2)/bb.w, (610 - pad*2)/bb.h, 14);
+  setZoom(s, 975/2 - (bb.x0+bb.x1)/2*s, 610/2 - (bb.y0+bb.y1)/2*s, anim);
+}
+function resetZoom(anim = true) { setZoom(1, 0, 0, anim); }
+
+// === Coordinate transform ===
+function mapToScreen(px, py) {
+  return { x: (px * zoomScale + zoomTx) * displayScale, y: (py * zoomScale + zoomTy) * displayScale };
+}
+
+// ============================================
+// MAGNETIC HOVER REVEAL SYSTEM
+// ============================================
+
+// Lerp for smooth inertia
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+// Current preview position (with inertia)
+let pvX = 0, pvY = 0;         // current animated position
+let pvTargetX = 0, pvTargetY = 0; // target position (follows cursor)
+let pvVisible = false;
+let pvActiveEl = null;         // currently hovered data-point element
+let pvActiveData = null;       // data for active point
+
+// Magnetic displacement state per point
+const magneticState = new WeakMap();
+
+function getMagnetic(el) {
+  if (!magneticState.has(el)) magneticState.set(el, { dx: 0, dy: 0, targetDx: 0, targetDy: 0 });
+  return magneticState.get(el);
+}
+
+// RAF loop for smooth animation
+function animationLoop() {
+  // Animate preview position with inertia
+  if (pvVisible) {
+    pvX = lerp(pvX, pvTargetX, 0.14);
+    pvY = lerp(pvY, pvTargetY, 0.14);
+    preview.style.transform = `translate(${Math.round(pvX)}px, ${Math.round(pvY)}px)`;
+  }
+
+  // Animate magnetic displacement for active point
+  if (pvActiveEl) {
+    const m = getMagnetic(pvActiveEl);
+    m.dx = lerp(m.dx, m.targetDx, 0.18);
+    m.dy = lerp(m.dy, m.targetDy, 0.18);
+    // Apply magnetic offset on top of the base centering transform
+    pvActiveEl.style.transform = `translate(calc(-50% + ${m.dx.toFixed(1)}px), calc(-50% + ${m.dy.toFixed(1)}px))`;
+  }
+
+  requestAnimationFrame(animationLoop);
+}
+requestAnimationFrame(animationLoop);
+
+function showPreview(el, pt) {
+  pvActiveEl = el;
+  pvActiveData = pt;
+
+  // Fill preview content
+  document.getElementById('pvName').textContent = pt.name;
+  const pct = Math.round(pt.proficiency * 100);
+  document.getElementById('pvStat').textContent = `${pct}%`;
+  document.getElementById('pvDesc').textContent = 'proficient in 8th grade math';
+
+  // Mini student figures
+  const figs = document.getElementById('pvFigures');
+  figs.innerHTML = '';
+  const litCount = Math.round(pt.proficiency * 10);
+  for (let i = 0; i < 10; i++) {
+    const fig = document.createElement('div');
+    fig.className = `pv-fig ${i < litCount ? 'lit' : 'dim'}`;
+    fig.innerHTML = '<div class="head"></div><div class="body"></div>';
+    figs.appendChild(fig);
+  }
+
+  // Meta info
+  let meta = '';
+  if (pt.schoolCount) meta = `${pt.schoolCount} school${pt.schoolCount > 1 ? 's' : ''}`;
+  else if (pt.district) meta = pt.district;
+  if (pt.city && currentLayer !== 'cities') meta += meta ? ` · ${pt.city}` : pt.city;
+  document.getElementById('pvMeta').textContent = meta;
+
+  // Position: above the element
+  const rect = el.getBoundingClientRect();
+  pvTargetX = rect.left + rect.width / 2 - 120; // center 240px card
+  pvTargetY = rect.top - 180; // above
+
+  // Snap initial position (no lerp on first show)
+  if (!pvVisible) {
+    pvX = pvTargetX;
+    pvY = pvTargetY;
+    preview.style.transform = `translate(${Math.round(pvX)}px, ${Math.round(pvY)}px)`;
+  }
+
+  pvVisible = true;
+  preview.classList.add('visible');
+}
+
+function movePreview(e, el) {
+  if (!pvActiveEl) return;
+
+  // Update preview target to follow cursor (offset above)
+  pvTargetX = e.clientX - 120;
+  pvTargetY = e.clientY - 190;
+
+  // Clamp to viewport
+  pvTargetX = Math.max(8, Math.min(pvTargetX, window.innerWidth - 248));
+  pvTargetY = Math.max(8, pvTargetY);
+
+  // Magnetic displacement: compute offset from element center
+  const rect = el.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const dx = e.clientX - cx;
+  const dy = e.clientY - cy;
+
+  // Magnetic pull factor (reduced for map context)
+  const MAGNETIC = 0.2;
+  const MAX_DISPLACEMENT = 6;
+  const m = getMagnetic(el);
+  m.targetDx = Math.max(-MAX_DISPLACEMENT, Math.min(MAX_DISPLACEMENT, dx * MAGNETIC));
+  m.targetDy = Math.max(-MAX_DISPLACEMENT, Math.min(MAX_DISPLACEMENT, dy * MAGNETIC));
+}
+
+function hidePreview(el) {
+  pvVisible = false;
+  preview.classList.remove('visible');
+
+  // Reset magnetic displacement
+  if (el) {
+    const m = getMagnetic(el);
+    m.targetDx = 0;
+    m.targetDy = 0;
+    // Animate back (lerp will handle in the RAF loop)
+  }
+
+  pvActiveEl = null;
+  pvActiveData = null;
+}
+
+// === Data points ===
+function renderPoints() {
+  pointsLayer.innerHTML = '';
+  hidePreview(null);
+  if (!stateData) return;
+
+  const pts = stateData[currentLayer] || [];
+  const showLabels = currentLayer !== 'schools';
+  const dotSize = currentLayer === 'schools' ? 5 : currentLayer === 'districts' ? 7 : 9;
+
+  for (const pt of pts) {
+    const { x: sx, y: sy } = mapToScreen(pt.x, pt.y);
+    const wW = wrapper.clientWidth, wH = wrapper.clientHeight;
+    if (sx < -20 || sx > wW + 20 || sy < -20 || sy > wH + 20) continue;
+
+    const el = document.createElement('div');
+    el.className = 'data-point';
+    el.style.left = `${sx}px`;
+    el.style.top = `${sy}px`;
+    // Base centering transform (will be overridden by magnetic animation)
+    el.style.transform = 'translate(-50%, -50%)';
+
+    const dot = document.createElement('div');
+    dot.className = 'dot';
+    dot.style.width = `${dotSize}px`;
+    dot.style.height = `${dotSize}px`;
+    dot.style.background = profColor(pt.proficiency);
+    el.appendChild(dot);
+
+    if (showLabels) {
+      const lbl = document.createElement('div');
+      lbl.className = 'pt-label';
+      lbl.textContent = pt.name;
+      el.appendChild(lbl);
+      el.classList.add('show-label');
+    }
+
+    // Magnetic hover events
+    el.addEventListener('mouseenter', () => showPreview(el, pt));
+    el.addEventListener('mousemove', (e) => movePreview(e, el));
+    el.addEventListener('mouseleave', () => hidePreview(el));
+
+    pointsLayer.appendChild(el);
+  }
+
+  requestAnimationFrame(() => {
+    pointsLayer.querySelectorAll('.data-point').forEach(el => el.classList.add('visible'));
+  });
+}
+
+// === NAEP info ===
+function updateInfo() {
+  if (!stateData) return;
+  const n = stateData.naep;
+  document.getElementById('naepNum').textContent = n.text;
+  document.getElementById('naepText').textContent =
+    `${stateData.stateName} 8th graders are below proficient in math.`;
+  document.getElementById('infoBar').classList.add('visible');
+}
+
+// === Controls ===
+document.querySelectorAll('.controls button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentLayer = btn.dataset.layer;
+    renderPoints();
+  });
+});
+
+document.getElementById('stateSelector').addEventListener('change', async (e) => {
+  currentState = e.target.value;
+  await loadStateData(currentState);
+  updateInfo();
+  zoomToState(currentState, true);
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => resetZoom(true));
+
+// === Init ===
+async function init() {
+  await loadTopology();
+  await loadStateData(currentState);
+  renderMap(FIPS[currentState]);
+  renderPoints();
+  updateInfo();
+  setTimeout(() => zoomToState(currentState, true), 600);
+  window.addEventListener('resize', () => {
+    displayScale = wrapper.clientWidth / 975;
+    renderMap(FIPS[currentState]);
+    renderPoints();
+  });
+}
+
+init();
+</script>
+</body>
+</html>
