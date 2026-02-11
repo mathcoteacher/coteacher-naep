@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Map v3 — Combined Experience</title>
+<title>Math CoTeacher</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   :root {
@@ -991,16 +991,19 @@ function initPreciseLocationBtn() {
       async (pos) => {
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
-        // Project to AlbersUSA to find which state
-        // Use a simple reverse: try each state's bounding box
-        // First, store the precise geo result
         geoResult = { lat, lon, city: '', region: '' };
-        // Determine state from coordinates using the projection
-        // We need to find the state, load its data, then find nearest city
-        // Strategy: use ipapi region if available, otherwise check point-in-polygon
-        const proj = projectionFromLatLon(lon, lat);
+        // Use reverse geocoding to determine state accurately
         let detectedState = null;
-        if (proj) detectedState = stateFromPoint(proj[0], proj[1]);
+        try {
+          const resp = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
+          if (resp.ok) {
+            const geo = await resp.json();
+            const code = geo.principalSubdivisionCode; // e.g. "US-OH"
+            if (code && code.startsWith('US-')) {
+              detectedState = code.slice(3);
+            }
+          }
+        } catch (e) { /* fall through */ }
         if (detectedState && detectedState !== currentState) {
           await switchToState(detectedState);
         }
