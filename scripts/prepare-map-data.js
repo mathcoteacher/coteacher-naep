@@ -15,8 +15,18 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const INPUT_DIR = join(__dirname, 'intermediate');
 const OUTPUT_DIR = join(__dirname, '..', 'public', 'data');
+const SAIPE_PATH = join(__dirname, 'saipe_data.json');
 
 mkdirSync(OUTPUT_DIR, { recursive: true });
+
+// Load Census poverty data (LEAID → poverty rate %)
+let saipeData = {};
+try {
+  saipeData = JSON.parse(readFileSync(SAIPE_PATH, 'utf-8'));
+  console.log(`Loaded poverty data for ${Object.keys(saipeData).length} districts\n`);
+} catch (e) {
+  console.log('Warning: saipe_data.json not found — run python3 scripts/saipe.py first\n');
+}
 
 // The us-atlas states-albers-10m.json uses the default geoAlbersUsa projection
 // which maps to a 975×610 viewport
@@ -35,35 +45,75 @@ function processState(filename) {
 
   console.log(`Processing ${stateCode} (${data.stateName})...`);
 
+  // Build district aggregates keyed by LEAID when available.
+  // This avoids district-name collisions (same name, different LEAID).
+  const districtAgg = new Map();
+
   // Project schools
   const schools = [];
   let skipped = 0;
   for (const s of data.schools) {
     const pt = projectPoint(s.lon, s.lat);
     if (!pt) { skipped++; continue; }
-    schools.push({
+    const rec = {
       name: s.name,
       x: pt.x,
       y: pt.y,
       proficiency: s.proficiency,
       district: s.district,
       city: s.city
-    });
+    };
+    let leaid = null;
+    if (s.ncessch) {
+      leaid = s.ncessch.substring(0, 7);
+      rec.leaid = leaid;
+      const pov = saipeData[leaid];
+      if (pov != null) rec.povertyRate = pov;
+    }
+    schools.push(rec);
+
+    const districtName = s.district || '';
+    if (!districtName) continue;
+    const districtKey = leaid ? `leaid:${leaid}` : `name:${districtName}`;
+    let agg = districtAgg.get(districtKey);
+    if (!agg) {
+      agg = {
+        name: districtName,
+        leaid,
+        schoolCount: 0,
+        sumLat: 0,
+        sumLon: 0,
+        sumProf: 0
+      };
+      districtAgg.set(districtKey, agg);
+    }
+    agg.schoolCount += 1;
+    agg.sumLat += s.lat;
+    agg.sumLon += s.lon;
+    agg.sumProf += s.proficiency;
   }
   if (skipped) console.log(`  Skipped ${skipped} schools outside projection bounds`);
 
-  // Project districts
+  // Project districts from school-derived LEAID aggregates.
   const districts = [];
-  for (const d of data.districts) {
-    const pt = projectPoint(d.lon, d.lat);
+  for (const agg of districtAgg.values()) {
+    const avgLat = agg.sumLat / agg.schoolCount;
+    const avgLon = agg.sumLon / agg.schoolCount;
+    const pt = projectPoint(avgLon, avgLat);
     if (!pt) continue;
-    districts.push({
-      name: d.name,
+    const rec = {
+      name: agg.name,
       x: pt.x,
       y: pt.y,
-      proficiency: d.proficiency,
-      schoolCount: d.schoolCount
-    });
+      proficiency: Math.round((agg.sumProf / agg.schoolCount) * 10000) / 10000,
+      schoolCount: agg.schoolCount
+    };
+    if (agg.leaid) {
+      rec.leaid = agg.leaid;
+      const pov = saipeData[agg.leaid];
+      if (pov != null) rec.povertyRate = pov;
+    }
+    districts.push(rec);
   }
 
   // Project cities

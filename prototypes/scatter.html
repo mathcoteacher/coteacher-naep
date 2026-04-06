@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poverty vs Proficiency — Scatter Plot</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #f5f0e8; --card-bg: #faf7f2; --ink: #2b2b2b; --muted: #888;
+    --accent: #e8542f;
+    --bg-dark: #1e1b17; --card-dark: #2a2621;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--ink);
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 2rem 1rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: var(--bg-dark); color: #e0dbd2; }
+  }
+  h1 {
+    font-size: 1.4rem; font-weight: 700; margin-bottom: 0.3rem;
+  }
+  .subtitle {
+    color: var(--muted); font-size: 0.95rem; margin-bottom: 1.5rem;
+    text-align: center; max-width: 600px; line-height: 1.4;
+  }
+  .controls {
+    display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;
+    justify-content: center;
+  }
+  .controls button {
+    padding: 0.35rem 0.7rem; border: 1px solid #ccc; border-radius: 4px;
+    background: var(--card-bg); color: var(--ink); cursor: pointer;
+    font-size: 0.8rem; font-family: inherit;
+  }
+  @media (prefers-color-scheme: dark) {
+    .controls button { background: var(--card-dark); border-color: #555; color: #e0dbd2; }
+  }
+  .controls button.active {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .chart-wrap {
+    position: relative;
+    width: min(90vw, 800px); height: min(70vh, 600px);
+  }
+  canvas {
+    width: 100%; height: 100%;
+    border-radius: 8px;
+  }
+  .tooltip {
+    position: absolute; pointer-events: none;
+    background: var(--card-bg); border: 1px solid #ddd; border-radius: 6px;
+    padding: 0.5rem 0.7rem; font-size: 0.82rem; line-height: 1.4;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    opacity: 0; transition: opacity 0.15s;
+    max-width: 260px;
+  }
+  @media (prefers-color-scheme: dark) {
+    .tooltip { background: var(--card-dark); border-color: #555; }
+  }
+  .tooltip.visible { opacity: 1; }
+  .stat-line {
+    margin-top: 0.7rem; font-size: 0.95rem; color: var(--muted);
+    text-align: center;
+  }
+  .stat-line strong { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<h1>Does Poverty Predict Math Proficiency?</h1>
+<p class="subtitle">Each dot is a school district. X-axis: child poverty rate (Census SAIPE 2024). Y-axis: 8th grade math proficiency.</p>
+
+<div class="controls" id="controls">
+  <button class="active" data-state="ALL">All States</button>
+</div>
+
+<div class="controls" id="bandControls">
+  <button class="active" data-band="all">All districts</button>
+  <button data-band="low">Low poverty (&lt;15%)</button>
+  <button data-band="mid">Medium poverty (15–30%)</button>
+  <button data-band="high">High poverty (&gt;30%)</button>
+</div>
+
+<div class="chart-wrap" id="chartWrap">
+  <canvas id="chart"></canvas>
+  <div class="tooltip" id="tooltip"></div>
+</div>
+
+<p class="stat-line" id="statLine"></p>
+
+<script>
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const BG = isDark ? '#1e1b17' : '#f5f0e8';
+const GRID = isDark ? '#333' : '#ddd';
+const AXIS = isDark ? '#999' : '#666';
+const DOT_FILL = isDark ? 'rgba(232,84,47,0.45)' : 'rgba(232,84,47,0.35)';
+const DOT_STROKE = isDark ? 'rgba(232,84,47,0.7)' : 'rgba(232,84,47,0.55)';
+const LINE_COLOR = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)';
+
+const STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN',
+  'IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH',
+  'NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT',
+  'VT','VA','WA','WV','WI','WY'
+];
+
+let allDistricts = []; // {name, state, proficiency, povertyRate}
+let filtered = [];
+let activeState = 'ALL';
+let activeBand = 'all';
+
+const BANDS = {
+  all:  { min: 0, max: 100 },
+  low:  { min: 0, max: 15 },
+  mid:  { min: 15, max: 30 },
+  high: { min: 30, max: 100 },
+};
+
+// Chart layout
+const canvas = document.getElementById('chart');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('chartWrap');
+const tooltip = document.getElementById('tooltip');
+
+const PAD = { top: 20, right: 30, bottom: 50, left: 60 };
+
+function resize() {
+  const r = window.devicePixelRatio || 1;
+  const w = wrap.clientWidth;
+  const h = wrap.clientHeight;
+  canvas.width = w * r;
+  canvas.height = h * r;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.setTransform(r, 0, 0, r, 0, 0);
+  return { w, h };
+}
+
+function profColor(p) {
+  if (p >= 0.6) return `hsl(${Math.round(100 + (p - 0.6) * 50)},60%,${isDark ? 42 : 45}%)`;
+  if (p >= 0.3) return `hsl(${Math.round((p - 0.3) * 333)},65%,${isDark ? 40 : 48}%)`;
+  return `hsl(${Math.round(p * 100)},70%,${isDark ? 36 : 42}%)`;
+}
+
+// Stats
+function pearson(pts) {
+  const n = pts.length;
+  if (n < 3) return null;
+  let sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+  for (const { povertyRate: x, proficiency: y } of pts) {
+    sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y;
+  }
+  const num = n * sxy - sx * sy;
+  const den = Math.sqrt((n * sxx - sx * sx) * (n * syy - sy * sy));
+  return den === 0 ? 0 : num / den;
+}
+
+function linReg(pts) {
+  const n = pts.length;
+  let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (const { povertyRate: x, proficiency: y } of pts) {
+    sx += x; sy += y; sxx += x * x; sxy += x * y;
+  }
+  const slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+  const intercept = (sy - slope * sx) / n;
+  return { slope, intercept };
+}
+
+function draw() {
+  const { w, h } = resize();
+  const plotW = w - PAD.left - PAD.right;
+  const plotH = h - PAD.top - PAD.bottom;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Axes ranges
+  const maxPov = 70;
+  const maxProf = 100;
+
+  function toX(pov) { return PAD.left + (pov / maxPov) * plotW; }
+  function toY(prof) { return PAD.top + plotH - (prof / maxProf) * plotH; }
+
+  // Grid lines
+  ctx.strokeStyle = GRID;
+  ctx.lineWidth = 0.5;
+  for (let p = 0; p <= maxPov; p += 10) {
+    const x = toX(p);
+    ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top + plotH); ctx.stroke();
+  }
+  for (let p = 0; p <= maxProf; p += 20) {
+    const y = toY(p);
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + plotW, y); ctx.stroke();
+  }
+
+  // Axis labels
+  ctx.fillStyle = AXIS;
+  ctx.font = '11px -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  for (let p = 0; p <= maxPov; p += 10) {
+    ctx.fillText(p + '%', toX(p), PAD.top + plotH + 18);
+  }
+  ctx.textAlign = 'right';
+  for (let p = 0; p <= maxProf; p += 20) {
+    ctx.fillText(p + '%', PAD.left - 8, toY(p) + 4);
+  }
+
+  // Axis titles
+  ctx.save();
+  ctx.fillStyle = AXIS;
+  ctx.font = '12px -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Child Poverty Rate (ages 5\u201317)', PAD.left + plotW / 2, h - 4);
+  ctx.save();
+  ctx.translate(14, PAD.top + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('8th Grade Math Proficiency', 0, 0);
+  ctx.restore();
+  ctx.restore();
+
+  // Regression line
+  if (filtered.length >= 3) {
+    const reg = linReg(filtered);
+    ctx.strokeStyle = LINE_COLOR;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    const x0 = 0, x1 = maxPov;
+    const y0 = (reg.intercept + reg.slope * x0) * 100;
+    const y1 = (reg.intercept + reg.slope * x1) * 100;
+    ctx.moveTo(toX(x0), toY(Math.max(0, Math.min(100, y0))));
+    ctx.lineTo(toX(x1), toY(Math.max(0, Math.min(100, y1))));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Dots — draw dimmed ones first, then highlighted ones on top
+  const band = BANDS[activeBand];
+  const radius = filtered.length > 2000 ? 2.5 : filtered.length > 500 ? 3 : 4;
+  const highlighted = [];
+  const dimmed = [];
+  for (const d of filtered) {
+    if (d.povertyRate >= band.min && d.povertyRate < band.max) {
+      highlighted.push(d);
+    } else {
+      dimmed.push(d);
+    }
+  }
+
+  // Dimmed dots (out of band)
+  if (activeBand !== 'all') {
+    for (const d of dimmed) {
+      const x = toX(d.povertyRate);
+      const y = toY(d.proficiency * 100);
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = isDark ? '#333' : '#d5d0c8';
+      ctx.globalAlpha = 0.4;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Highlighted dots (in band)
+  for (const d of highlighted) {
+    const x = toX(d.povertyRate);
+    const y = toY(d.proficiency * 100);
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = profColor(d.proficiency);
+    ctx.globalAlpha = activeBand === 'all' ? 0.6 : 0.8;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Stats
+  const statsSet = activeBand === 'all' ? filtered : highlighted;
+  const r = pearson(statsSet);
+  const statEl = document.getElementById('statLine');
+  if (r !== null && statsSet.length > 0) {
+    const avgProf = Math.round(statsSet.reduce((s, d) => s + d.proficiency, 0) / statsSet.length * 100);
+    const label = activeBand === 'all'
+      ? (activeState === 'ALL' ? 'all districts' : activeState + ' districts')
+      : `${statsSet.length.toLocaleString()} districts in band`;
+    statEl.innerHTML = `<strong>r = ${r.toFixed(3)}</strong> across ${statsSet.length.toLocaleString()} ${label} · avg proficiency: <strong>${avgProf}%</strong>`;
+  } else {
+    statEl.textContent = '';
+  }
+
+  // Store for hit-testing
+  window._plotMeta = { toX, toY, maxPov, maxProf, radius };
+}
+
+// Tooltip hit-testing
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const m = window._plotMeta;
+  if (!m) return;
+
+  let closest = null, closestDist = Infinity;
+  for (const d of filtered) {
+    const dx = m.toX(d.povertyRate) - mx;
+    const dy = m.toY(d.proficiency * 100) - my;
+    const dist = dx * dx + dy * dy;
+    if (dist < closestDist && dist < 400) {
+      closestDist = dist;
+      closest = d;
+    }
+  }
+
+  if (closest) {
+    tooltip.innerHTML = `<strong>${closest.name}</strong><br>${closest.state} &middot; ${Math.round(closest.proficiency * 100)}% proficient &middot; ${Math.round(closest.povertyRate)}% poverty`;
+    tooltip.classList.add('visible');
+    const tx = Math.min(mx + 12, wrap.clientWidth - 270);
+    const ty = Math.max(my - 60, 0);
+    tooltip.style.left = tx + 'px';
+    tooltip.style.top = ty + 'px';
+  } else {
+    tooltip.classList.remove('visible');
+  }
+});
+canvas.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
+
+// Load data
+async function loadAll() {
+  const controlsEl = document.getElementById('controls');
+
+  for (const st of STATES) {
+    try {
+      const resp = await fetch(`../public/data/${st}.json`);
+      const data = await resp.json();
+      for (const d of data.districts) {
+        if (d.povertyRate != null) {
+          allDistricts.push({
+            name: d.name,
+            state: st,
+            proficiency: d.proficiency,
+            povertyRate: d.povertyRate
+          });
+        }
+      }
+    } catch (e) { /* skip */ }
+  }
+
+  // Create state buttons
+  for (const st of STATES) {
+    const btn = document.createElement('button');
+    btn.textContent = st;
+    btn.dataset.state = st;
+    controlsEl.appendChild(btn);
+  }
+
+  // Click handler
+  controlsEl.addEventListener('click', (e) => {
+    if (e.target.tagName !== 'BUTTON') return;
+    controlsEl.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    activeState = e.target.dataset.state;
+    applyFilter();
+  });
+
+  // Band filter buttons
+  const bandEl = document.getElementById('bandControls');
+  bandEl.addEventListener('click', (e) => {
+    if (e.target.tagName !== 'BUTTON') return;
+    bandEl.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    activeBand = e.target.dataset.band;
+    draw();
+  });
+
+  applyFilter();
+}
+
+function applyFilter() {
+  filtered = activeState === 'ALL'
+    ? allDistricts
+    : allDistricts.filter(d => d.state === activeState);
+  draw();
+}
+
+window.addEventListener('resize', draw);
+loadAll();
+</script>
+</body>
+</html>

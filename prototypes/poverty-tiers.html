@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poverty &amp; Math Proficiency</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #f5f0e8; --card-bg: #faf7f2; --ink: #2b2b2b; --muted: #888;
+    --accent: #e8542f;
+    --bg-dark: #1e1b17; --card-dark: #2a2621; --ink-dark: #e0dbd2;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--ink);
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: var(--bg-dark); color: var(--ink-dark); }
+  }
+
+  .container {
+    max-width: 640px; width: 100%;
+  }
+
+  h1 {
+    font-size: 1.5rem; font-weight: 700; margin-bottom: 0.4rem;
+    text-align: center;
+  }
+  .intro {
+    text-align: center; color: var(--muted); font-size: 0.95rem;
+    margin-bottom: 2.5rem; line-height: 1.5;
+  }
+
+  .tier {
+    margin-bottom: 2.2rem;
+  }
+  .tier-label {
+    font-size: 0.85rem; color: var(--muted); margin-bottom: 0.5rem;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .tier-headline {
+    font-size: 1.6rem; font-weight: 700; margin-bottom: 0.8rem;
+    line-height: 1.2;
+  }
+  .tier-headline .num {
+    color: var(--accent); font-size: 2rem;
+  }
+
+  .figures {
+    display: flex; gap: 6px; margin-bottom: 0.4rem;
+    height: 54px; align-items: flex-end;
+  }
+  .fig {
+    display: flex; flex-direction: column; align-items: center;
+    transition: opacity 0.6s;
+  }
+  .fig .head {
+    width: 12px; height: 12px; border-radius: 50%;
+    margin-bottom: 2px;
+  }
+  .fig .body {
+    width: 8px; height: 28px; border-radius: 4px;
+  }
+  .fig.lit .head, .fig.lit .body {
+    background: var(--accent);
+  }
+  .fig.dim .head, .fig.dim .body {
+    background: #d0cbc2;
+  }
+  @media (prefers-color-scheme: dark) {
+    .fig.dim .head, .fig.dim .body {
+      background: #3a3632;
+    }
+  }
+
+  .tier-detail {
+    font-size: 0.82rem; color: var(--muted); margin-top: 0.3rem;
+  }
+
+  .divider {
+    border: none; border-top: 1px solid #ddd; margin: 0 0 2.2rem 0;
+  }
+  @media (prefers-color-scheme: dark) {
+    .divider { border-color: #3a3632; }
+  }
+
+  .kicker {
+    text-align: center; font-size: 1.05rem; line-height: 1.5;
+    color: var(--muted); margin-top: 1rem; font-style: italic;
+    max-width: 500px; margin-left: auto; margin-right: auto;
+  }
+  .kicker strong { color: var(--ink); font-style: normal; }
+  @media (prefers-color-scheme: dark) {
+    .kicker strong { color: var(--ink-dark); }
+  }
+
+  .loading {
+    text-align: center; color: var(--muted); font-size: 0.9rem;
+    padding: 4rem 0;
+  }
+
+  .controls {
+    display: flex; gap: 0.5rem; margin-bottom: 2rem; flex-wrap: wrap;
+    justify-content: center;
+  }
+  .controls button {
+    padding: 0.35rem 0.7rem; border: 1px solid #ccc; border-radius: 4px;
+    background: var(--card-bg); color: var(--ink); cursor: pointer;
+    font-size: 0.8rem; font-family: inherit;
+  }
+  @media (prefers-color-scheme: dark) {
+    .controls button { background: var(--card-dark); border-color: #555; color: var(--ink-dark); }
+  }
+  .controls button.active {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Poverty predicts math failure</h1>
+  <p class="intro">8th grade math proficiency in US school districts,<br>grouped by child poverty rate.</p>
+
+  <div class="controls" id="controls">
+    <button class="active" data-state="ALL">All States</button>
+  </div>
+
+  <div id="content"><p class="loading">Loading district data...</p></div>
+</div>
+
+<script>
+const STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN',
+  'IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH',
+  'NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT',
+  'VT','VA','WA','WV','WI','WY'
+];
+
+const TIERS = [
+  { key: 'wealthy', label: 'Wealthy districts',        detail: 'under 5% child poverty',  min: 0,  max: 5   },
+  { key: 'low',     label: 'Low-poverty districts',    detail: '5–15% child poverty',     min: 5,  max: 15  },
+  { key: 'mid',     label: 'Medium-poverty districts',  detail: '15–30% child poverty',    min: 15, max: 30  },
+  { key: 'high',    label: 'High-poverty districts',   detail: 'over 30% child poverty',  min: 30, max: 100 },
+];
+
+let allDistricts = [];
+let activeState = 'ALL';
+
+async function loadAll() {
+  const controlsEl = document.getElementById('controls');
+
+  for (const st of STATES) {
+    try {
+      const resp = await fetch(`../public/data/${st}.json`);
+      const data = await resp.json();
+      for (const d of data.districts) {
+        if (d.povertyRate != null) {
+          allDistricts.push({
+            name: d.name, state: st,
+            proficiency: d.proficiency, povertyRate: d.povertyRate
+          });
+        }
+      }
+    } catch (e) { /* skip */ }
+  }
+
+  for (const st of STATES) {
+    const btn = document.createElement('button');
+    btn.textContent = st;
+    btn.dataset.state = st;
+    controlsEl.appendChild(btn);
+  }
+
+  controlsEl.addEventListener('click', (e) => {
+    if (e.target.tagName !== 'BUTTON') return;
+    controlsEl.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    activeState = e.target.dataset.state;
+    render();
+  });
+
+  render();
+}
+
+function render() {
+  const districts = activeState === 'ALL'
+    ? allDistricts
+    : allDistricts.filter(d => d.state === activeState);
+
+  const contentEl = document.getElementById('content');
+
+  if (districts.length === 0) {
+    contentEl.innerHTML = '<p class="loading">No district data available for this selection.</p>';
+    return;
+  }
+
+  let html = '';
+
+  const tierStats = TIERS.map(tier => {
+    const inTier = districts.filter(d => d.povertyRate >= tier.min && d.povertyRate < tier.max);
+    if (inTier.length === 0) return null;
+    const avgProf = inTier.reduce((s, d) => s + d.proficiency, 0) / inTier.length;
+    const notProf = 1 - avgProf;
+    return { ...tier, avgProf, notProf, count: inTier.length };
+  }).filter(Boolean);
+
+  for (const tier of tierStats) {
+    const notProfRound = Math.round(tier.notProf * 10);
+    const litCount = notProfRound;
+
+    let figures = '';
+    for (let i = 0; i < 10; i++) {
+      const cls = i < litCount ? 'lit' : 'dim';
+      figures += `<div class="fig ${cls}"><div class="head"></div><div class="body"></div></div>`;
+    }
+
+    html += `
+      <div class="tier">
+        <div class="tier-label">${tier.label}</div>
+        <div class="tier-headline">
+          <span class="num">${notProfRound}</span> out of 10 students are <em>not</em> proficient
+        </div>
+        <div class="figures">${figures}</div>
+        <div class="tier-detail">${tier.detail} · ${tier.count.toLocaleString()} districts · avg proficiency ${Math.round(tier.avgProf * 100)}%</div>
+      </div>
+      <hr class="divider">
+    `;
+  }
+
+  // Kicker
+  if (tierStats.length >= 2) {
+    const lowTier = tierStats.find(t => t.key === 'low');
+    const highTier = tierStats.find(t => t.key === 'high');
+
+    if (lowTier && highTier) {
+      const lowNotProf = Math.round(lowTier.notProf * 10);
+      const highNotProf = Math.round(highTier.notProf * 10);
+      html += `<p class="kicker">Even in low-poverty districts, <strong>${lowNotProf} out of 10</strong> students can't do 8th grade math. In high-poverty districts, it's <strong>${highNotProf} out of 10</strong>. Poverty makes it worse — but the crisis is everywhere.</p>`;
+    } else {
+      const first = tierStats[0];
+      const last = tierStats[tierStats.length - 1];
+      const firstNotProf = Math.round(first.notProf * 10);
+      const lastNotProf = Math.round(last.notProf * 10);
+      html += `<p class="kicker">In ${first.label.toLowerCase()}, <strong>${firstNotProf} out of 10</strong> students can't do 8th grade math. In ${last.label.toLowerCase()}, it's <strong>${lastNotProf} out of 10</strong>. Poverty makes it worse — but the crisis is everywhere.</p>`;
+    }
+  }
+
+  contentEl.innerHTML = html;
+}
+
+loadAll();
+</script>
+</body>
+</html>

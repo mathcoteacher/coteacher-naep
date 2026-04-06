@@ -363,6 +363,17 @@ export default {
     try {
       const url = new URL(request.url);
 
+      // Proxy /demo/* to the Vercel-hosted mct-demo app
+      if (url.pathname.startsWith('/demo')) {
+        const vercelUrl = new URL(url.pathname + url.search, 'https://mct-demo.vercel.app');
+        const proxyReq = new Request(vercelUrl.toString(), {
+          method: request.method,
+          headers: request.headers,
+          body: request.body,
+        });
+        return fetch(proxyReq);
+      }
+
       if (request.method !== "GET") {
         return new Response("Method Not Allowed", {
           status: 405,

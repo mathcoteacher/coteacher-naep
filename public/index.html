@@ -141,7 +141,7 @@
   .anim-container canvas { display: block; width: 100%; }
 
   .message {
-    opacity: 0;
+    opacity: 1;
     transition: opacity 0.8s;
     display: flex;
     flex-direction: column;
@@ -199,7 +199,7 @@
     </div>
     <div class="message" id="msg">
       <div class="headline"><span class="num" id="numText">3</span> out of <span class="num" id="denomText">4</span> <span id="stateLabel">American</span> 8th graders are looking at a lifetime of lost potential because they are below proficient in math.</div>
-      <a href="#solution" class="cta-button">Math CoTeacher is the solution</a>
+      <a href="/demo" class="cta-button">Math CoTeacher is the solution</a>
     </div>
   </div>
 </div>
@@ -621,16 +621,27 @@ const animCanvas = document.getElementById('animCanvas');
 const animCtx = animCanvas.getContext('2d');
 let AW, AH, AFW, AFH, AGAP, ASX, ASY;
 let TOTAL = 4, FLICKER_COUNT = 3;
-let formingPixels = [], animStart = 0, animAF, textShown = false;
+const ANIMATION_START_DELAY_MS = 750;
+const INTRO_TOTAL = 10;
+let formingPixels = [], animStart = 0, animAF, animDelayTimer = null, textShown = false;
+
+function getFigureLayout(totalCount) {
+  const fw = Math.round(AW * 0.055);
+  const fh = Math.round(fw * 2.6);
+  const gap = Math.round((AW - fw * totalCount) / (totalCount + 1));
+  const sx = gap;
+  const sy = Math.round((AH - fh) / 2) + 10;
+  return { fw, fh, gap, sx, sy };
+}
 
 function animSizing() {
   const container = animCanvas.parentElement;
   const maxW = container.clientWidth;
   AW = maxW; AH = Math.round(maxW * 0.38);
   animCanvas.width = AW; animCanvas.height = AH;
-  AFW = Math.round(AW * 0.055); AFH = Math.round(AFW * 2.6);
-  AGAP = Math.round((AW - AFW * TOTAL) / (TOTAL + 1)); ASX = AGAP;
-  ASY = Math.round((AH - AFH) / 2) + 10;
+  const targetLayout = getFigureLayout(TOTAL);
+  AFW = targetLayout.fw; AFH = targetLayout.fh;
+  AGAP = targetLayout.gap; ASX = targetLayout.sx; ASY = targetLayout.sy;
 }
 
 function drawFig(x, y, w, h, color, alpha) {
@@ -649,6 +660,16 @@ function drawFig(x, y, w, h, color, alpha) {
 function drawGlow(x, y, w, h, color, alpha, gr) {
   if (gr > 0 && alpha > 0.1) { animCtx.save(); animCtx.globalAlpha = alpha * 0.35; animCtx.shadowColor = color; animCtx.shadowBlur = gr; drawFig(x, y, w, h, color, 1); animCtx.restore(); }
   drawFig(x, y, w, h, color, alpha);
+}
+
+function drawIntroAllOrange() {
+  const introLayout = getFigureLayout(INTRO_TOTAL);
+  animCtx.fillStyle = BG;
+  animCtx.fillRect(0, 0, AW, AH);
+  for (let i = 0; i < INTRO_TOTAL; i++) {
+    const fx = introLayout.sx + i * (introLayout.fw + introLayout.gap);
+    drawGlow(fx, introLayout.sy, introLayout.fw, introLayout.fh, ACCENT, 0.95, 10);
+  }
 }
 
 function buildPixels(fi) {
@@ -681,13 +702,16 @@ function animEase(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) 
 
 function startAnimation() {
   animSizing();
-  const msg = document.getElementById('msg');
-  msg.classList.remove('visible'); msg.style.opacity = '0'; textShown = false;
+  textShown = false;
   formingPixels = [];
   for (let i = 0; i < TOTAL; i++) formingPixels.push(buildPixels(i));
-  animStart = performance.now();
   if (animAF) cancelAnimationFrame(animAF);
-  runAnim();
+  if (animDelayTimer) clearTimeout(animDelayTimer);
+  drawIntroAllOrange();
+  animDelayTimer = setTimeout(() => {
+    animStart = performance.now();
+    runAnim();
+  }, ANIMATION_START_DELAY_MS);
 }
 
 function runAnim() {

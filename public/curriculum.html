@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Curriculum Map - Math CoTeacher</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #f5f0e8; --card-bg: #faf7f2; --ink: #2b2b2b; --muted: #888;
+    --accent: #e8542f; --dead: #c5bfb5; --dead-dark: #3a3632;
+    --bg-dark: #1e1b17; --card-dark: #2a2621;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--ink);
+    min-height: 100vh;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: var(--bg-dark); color: #e0dbd2; }
+  }
+
+  .page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* === Toolbar === */
+  .toolbar {
+    display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;
+    align-items: center;
+  }
+  .toolbar button, .toolbar select {
+    font-family: inherit; font-size: 0.78rem; font-weight: 600;
+    padding: 0.3rem 0.7rem; border-radius: 6px;
+    border: 2px solid #d4cfc5; background: transparent; color: var(--ink);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .toolbar button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .toolbar button:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+  @media (prefers-color-scheme: dark) {
+    .toolbar button, .toolbar select {
+      border-color: var(--dead-dark); color: #e0dbd2;
+    }
+    .toolbar button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .toolbar select { background: var(--card-dark); }
+  }
+
+  .toolbar .spacer { flex: 1; }
+
+  /* === Search === */
+  .search-container {
+    position: relative; min-width: 180px; max-width: 300px;
+  }
+  .search-container input {
+    width: 100%; font-family: inherit; font-size: 0.78rem; font-weight: 600;
+    padding: 0.3rem 0.7rem; border-radius: 6px;
+    border: 2px solid #d4cfc5; background: transparent; color: var(--ink);
+    outline: none; transition: border-color 0.15s;
+  }
+  .search-container input:focus { border-color: var(--accent); }
+  .search-container input::placeholder { color: var(--muted); font-weight: 400; }
+  @media (prefers-color-scheme: dark) {
+    .search-container input {
+      border-color: var(--dead-dark); color: #e0dbd2; background: transparent;
+    }
+    .search-container input::placeholder { color: #6a655c; }
+  }
+  .search-results {
+    position: absolute; top: 100%; left: 0; right: 0;
+    margin-top: 4px; background: var(--card-bg);
+    border: 2px solid #d4cfc5; border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    max-height: 360px; overflow-y: auto;
+    z-index: 200; display: none;
+  }
+  .search-results.open { display: block; }
+  @media (prefers-color-scheme: dark) {
+    .search-results {
+      background: var(--card-dark); border-color: var(--dead-dark);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+  }
+  .search-result {
+    padding: 0.5rem 0.7rem; cursor: pointer;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    transition: background 0.1s;
+  }
+  .search-result:last-child { border-bottom: none; }
+  .search-result:hover, .search-result.highlighted {
+    background: rgba(232, 84, 47, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    .search-result { border-bottom-color: rgba(255,255,255,0.06); }
+    .search-result:hover, .search-result.highlighted {
+      background: rgba(232, 84, 47, 0.15);
+    }
+  }
+  .search-result .sr-name { font-weight: 600; font-size: 0.82rem; }
+  .search-result .sr-meta { font-size: 0.7rem; color: var(--muted); }
+
+  /* === Map === */
+  .map-wrapper {
+    position: relative;
+    width: 100%;
+    border-radius: 8px;
+    aspect-ratio: 975 / 610;
+    overflow: hidden;
+    flex: 1;
+    touch-action: none;
+    cursor: grab;
+  }
+  .map-wrapper canvas { display: block; width: 100%; }
+
+  /* === Zoom UI === */
+  .zoom-hint {
+    position: absolute; bottom: 12px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 27, 23, 0.85); color: #e0dbd2;
+    font-size: 0.75rem; padding: 0.35rem 0.8rem;
+    border-radius: 20px; pointer-events: none;
+    opacity: 0; transition: opacity 0.4s; z-index: 10;
+  }
+  .zoom-hint.visible { opacity: 1; }
+  .zoom-indicator {
+    position: absolute; top: 8px; right: 8px;
+    font-size: 0.72rem; font-weight: 700;
+    color: var(--accent); opacity: 0;
+    transition: opacity 0.3s; pointer-events: none; z-index: 10;
+    background: rgba(245,240,232,0.8); padding: 2px 6px; border-radius: 4px;
+  }
+  @media (prefers-color-scheme: dark) {
+    .zoom-indicator { background: rgba(30,27,23,0.8); }
+  }
+  .zoom-indicator.visible { opacity: 1; }
+  .zoom-buttons {
+    position: absolute; bottom: 12px; right: 12px;
+    display: flex; flex-direction: column; gap: 4px;
+    opacity: 1; transition: opacity 0.3s; pointer-events: auto; z-index: 10;
+  }
+  .zoom-btn {
+    width: 32px; height: 32px; border-radius: 6px;
+    border: 1.5px solid #d4cfc5; background: rgba(250,247,242,0.92);
+    color: var(--ink); font-size: 1.1rem; font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.15s, background 0.15s;
+    line-height: 1;
+  }
+  .zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .zoom-btn:active { background: rgba(232,84,47,0.1); }
+  @media (prefers-color-scheme: dark) {
+    .zoom-btn { border-color: var(--dead-dark); background: rgba(42,38,33,0.92); color: #e0dbd2; }
+    .zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+  }
+
+  /* === Preview card === */
+  .preview {
+    position: fixed; top: 0; left: 0; pointer-events: none; z-index: 100;
+    width: 260px; padding: 1rem 1.1rem; border-radius: 12px;
+    background: rgba(30, 27, 23, 0.95); color: #e0dbd2;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2);
+    clip-path: circle(0% at 50% 100%); opacity: 0;
+    transition: clip-path 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s;
+    will-change: transform, clip-path;
+  }
+  .preview.visible { clip-path: circle(150% at 50% 100%); opacity: 1; }
+  .preview .pv-name { font-weight: 700; font-size: 0.92rem; margin-bottom: 0.2rem; line-height: 1.2; }
+  .preview .pv-state { font-size: 0.75rem; color: #9a958c; margin-bottom: 0.5rem; }
+  .preview .pv-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.3rem; }
+  .preview .pv-label { font-size: 0.7rem; color: #9a958c; text-transform: uppercase; letter-spacing: 0.03em; }
+  .preview .pv-value { font-size: 0.82rem; font-weight: 600; }
+  .preview .pv-verified { color: #76b7b2; }
+  .preview .pv-inferred { color: #9a958c; font-style: italic; }
+  .preview .pv-meta {
+    font-size: 0.72rem; color: #6a655c; margin-top: 0.4rem;
+    border-top: 1px solid #3a3632; padding-top: 0.35rem;
+  }
+  .pv-badge {
+    display: inline-block; font-size: 0.6rem; font-weight: 700;
+    padding: 1px 5px; border-radius: 3px; margin-left: 6px;
+    vertical-align: middle; text-transform: uppercase;
+  }
+  .pv-badge.verified { background: rgba(118,183,178,0.2); color: #76b7b2; }
+  .pv-badge.inferred { background: rgba(154,149,140,0.2); color: #9a958c; }
+
+  /* === Legend === */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1rem;
+    padding: 0.6rem 0; margin-top: 0.3rem;
+    border-top: 1px solid var(--dead);
+    font-size: 0.75rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    .legend { border-top-color: var(--dead-dark); }
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 0.3rem;
+    cursor: pointer; padding: 0.15rem 0.3rem; border-radius: 4px;
+    transition: opacity 0.15s, background 0.1s;
+    user-select: none;
+  }
+  .legend-item:hover { background: rgba(232, 84, 47, 0.08); }
+  .legend-item.hidden { opacity: 0.3; }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.3);
+    flex-shrink: 0;
+  }
+  .legend-name { font-weight: 600; }
+  .legend-count { color: var(--muted); }
+  .legend-note {
+    font-size: 0.7rem; color: var(--muted); padding: 0.2rem 0;
+    width: 100%;
+  }
+
+  /* === Mobile === */
+  @media (max-width: 700px) {
+    .toolbar { gap: 0.35rem; }
+    .search-container { min-width: 140px; max-width: none; flex: 1; }
+    .legend { gap: 0.3rem 0.7rem; font-size: 0.7rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="toolbar">
+    <button class="active" id="k5Btn" data-grade="k5">K-5</button>
+    <button id="g68Btn" data-grade="g68">6-8</button>
+    <button id="verifiedBtn">Verified only</button>
+    <div class="spacer"></div>
+    <div class="search-container">
+      <input type="text" id="searchInput" placeholder="Find a district..." autocomplete="off">
+      <div class="search-results" id="searchResults"></div>
+    </div>
+    <select id="stateSelector">
+      <option value="">All States</option>
+    </select>
+    <button id="resetBtn">US Map</button>
+  </div>
+
+  <div class="map-wrapper" id="mapWrapper">
+    <canvas id="mapCanvas" width="975" height="610"></canvas>
+    <div class="zoom-hint" id="zoomHint">Scroll to zoom</div>
+    <div class="zoom-indicator" id="zoomIndicator"></div>
+    <div class="zoom-buttons" id="zoomButtons">
+      <button class="zoom-btn" id="zoomInBtn" title="Zoom in">+</button>
+      <button class="zoom-btn" id="zoomOutBtn" title="Zoom out">&minus;</button>
+    </div>
+  </div>
+
+  <div class="legend" id="legend"></div>
+</div>
+
+<!-- Preview card -->
+<div class="preview" id="preview">
+  <div class="pv-name" id="pvName"></div>
+  <div class="pv-state" id="pvState"></div>
+  <div class="pv-row"><span class="pv-label">K-5</span> <span class="pv-value" id="pvK5"></span></div>
+  <div class="pv-row"><span class="pv-label">6-8</span> <span class="pv-value" id="pvG68"></span></div>
+  <div class="pv-meta" id="pvMeta"></div>
+</div>
+
+<script>
+// =========================================
+// TOPO DECODER (from explore.html)
+// =========================================
+function topoDecode(topology) {
+  const { scale: s, translate: t } = topology.transform || { scale: [1,1], translate: [0,0] };
+  function decArc(arc) { let x=0,y=0; return arc.map(p => { x+=p[0]; y+=p[1]; return [x*s[0]+t[0], y*s[1]+t[1]]; }); }
+  const dec = topology.arcs.map(decArc);
+  function ring(idx) { const c=[]; for(const i of idx){ const a=i>=0?dec[i]:dec[~i].slice().reverse(); for(let j=0;j<a.length;j++) if(j>0||c.length===0) c.push(a[j]); } return c; }
+  return o => topology.objects[o].geometries.map(g => {
+    if(g.type==='Polygon') return{type:'Polygon',coordinates:g.arcs.map(ring),properties:g.properties,id:g.id};
+    if(g.type==='MultiPolygon') return{type:'MultiPolygon',coordinates:g.arcs.map(a=>a.map(ring)),properties:g.properties,id:g.id};
+    return g;
+  });
+}
+
+// =========================================
+// CONSTANTS & COLORS
+// =========================================
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const ACCENT = '#e8542f';
+const STATE_FILL = isDark ? '#2a2621' : '#e8e3d8';
+const STATE_STROKE = isDark ? '#3a3632' : '#c5bfb5';
+const HIGHLIGHT_FILL = isDark ? '#3a3228' : '#f5e6d0';
+const HIGHLIGHT_STROKE = ACCENT;
+const BG = isDark ? '#1e1b17' : '#f5f0e8';
+const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+// Curriculum colors: Tableau-inspired categorical palette
+const CURRICULUM_COLORS = [
+  '#4e79a7', // steel blue
+  '#f28e2b', // orange
+  '#e15759', // red
+  '#76b7b2', // teal
+  '#59a14f', // green
+  '#edc948', // gold
+  '#b07aa1', // purple
+  '#ff9da7', // pink
+  '#9c755f', // brown
+  '#bab0ac', // warm gray
+  '#86bcb6', // sea green
+  '#8cd17d', // lime
+];
+const OTHER_COLOR = '#777777';
+const MAX_COLORED = CURRICULUM_COLORS.length;
+
+const FIPS = {
+  AL:'01',AK:'02',AZ:'04',AR:'05',CA:'06',CO:'08',CT:'09',DE:'10',DC:'11',
+  FL:'12',GA:'13',HI:'15',ID:'16',IL:'17',IN:'18',IA:'19',KS:'20',KY:'21',
+  LA:'22',ME:'23',MD:'24',MA:'25',MI:'26',MN:'27',MS:'28',MO:'29',MT:'30',
+  NE:'31',NV:'32',NH:'33',NJ:'34',NM:'35',NY:'36',NC:'37',ND:'38',OH:'39',
+  OK:'40',OR:'41',PA:'42',RI:'44',SC:'45',SD:'46',TN:'47',TX:'48',UT:'49',
+  VT:'50',VA:'51',WA:'53',WV:'54',WI:'55',WY:'56'
+};
+const STATE_NAMES = {
+  AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',
+  CT:'Connecticut',DE:'Delaware',DC:'District of Columbia',FL:'Florida',GA:'Georgia',
+  HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',
+  LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',
+  MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',
+  NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',
+  OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',
+  SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',
+  WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming'
+};
+
+// =========================================
+// STATE
+// =========================================
+let stateFeatures = [];
+let mapData = null; // loaded curriculum-map.json
+let currentGrade = 'k5';
+let verifiedOnly = false;
+let currentState = ''; // '' = national view
+let hiddenCurricula = new Set();
+let selectedDistrict = null; // index into mapData.districts
+
+let zoomScale=1, zoomTx=0, zoomTy=0, displayScale=1;
+let baseScale=1, baseTx=0, baseTy=0, userZoomLevel=1;
+let targetZoomScale=1, targetZoomTx=0, targetZoomTy=0;
+let smoothZoomRAF=null, labelTimer=null, zoomHintTimer=null;
+let isAnimatingZoom=false;
+let isDragging=false, dragStartX=0, dragStartY=0, dragStartTx=0, dragStartTy=0;
+
+const mapCanvas = document.getElementById('mapCanvas');
+const mapCtx = mapCanvas.getContext('2d');
+const wrapper = document.getElementById('mapWrapper');
+const preview = document.getElementById('preview');
+
+// =========================================
+// LOAD DATA
+// =========================================
+async function loadTopology() {
+  stateFeatures = topoDecode(await (await fetch('/us-states.json')).json())('states');
+}
+
+// =========================================
+// MAP RENDERING
+// =========================================
+function renderMap(hlId) {
+  const wW = wrapper.clientWidth;
+  displayScale = wW / 975;
+  mapCanvas.width = 975; mapCanvas.height = 610;
+  mapCanvas.style.width = `${wW}px`;
+  mapCanvas.style.height = `${Math.round(610*displayScale)}px`;
+  mapCtx.clearRect(0,0,975,610);
+
+  // Draw state polygons
+  for(const f of stateFeatures){
+    const hi = f.id===hlId;
+    mapCtx.fillStyle = hi?HIGHLIGHT_FILL:STATE_FILL;
+    mapCtx.strokeStyle = hi?HIGHLIGHT_STROKE:STATE_STROKE;
+    mapCtx.lineWidth = hi?2:0.5;
+    const polys = f.type==='MultiPolygon'?f.coordinates:[f.coordinates];
+    for(const poly of polys) for(const ring of poly){
+      mapCtx.beginPath();
+      for(let i=0;i<ring.length;i++){
+        const sx=ring[i][0]*zoomScale+zoomTx, sy=ring[i][1]*zoomScale+zoomTy;
+        if(i===0) mapCtx.moveTo(sx,sy); else mapCtx.lineTo(sx,sy);
+      }
+      mapCtx.closePath(); mapCtx.fill(); mapCtx.stroke();
+    }
+  }
+
+  // Draw curriculum dots on same canvas
+  if(mapData) renderDots();
+}
+
+function getCurriculumColor(idx) {
+  if (idx == null || idx < 0) return OTHER_COLOR;
+  if (idx < MAX_COLORED) return CURRICULUM_COLORS[idx];
+  return OTHER_COLOR;
+}
+
+function getVisibleDistricts() {
+  if (!mapData) return [];
+  return mapData.districts.filter((d, i) => {
+    const field = currentGrade;
+    const vField = currentGrade + 'v';
+    // Must have curriculum data for current grade
+    if (d[field] == null) return false;
+    // Verified filter
+    if (verifiedOnly && !d[vField]) return false;
+    // State filter
+    if (currentState && d.s !== currentState) return false;
+    // Curriculum filter
+    const curricIdx = d[field];
+    const curricName = currentGrade === 'k5'
+      ? mapData.curricula_k5[curricIdx]
+      : mapData.curricula_g68[curricIdx];
+    if (hiddenCurricula.has(curricName)) return false;
+    return true;
+  });
+}
+
+function renderDots() {
+  const visible = getVisibleDistricts();
+  const field = currentGrade;
+  const vField = currentGrade + 'v';
+
+  // Dot size based on effective zoom level
+  const effectiveZoom = baseScale * userZoomLevel;
+  const baseDotR = effectiveZoom > 8 ? 5 : effectiveZoom > 3 ? 4 : 3;
+
+  for (let i = 0; i < visible.length; i++) {
+    const d = visible[i];
+    const sx = d.x * zoomScale + zoomTx;
+    const sy = d.y * zoomScale + zoomTy;
+
+    // Skip dots outside viewport
+    if (sx < -10 || sx > 985 || sy < -10 || sy > 620) continue;
+
+    const isSelected = selectedDistrict && d.id === selectedDistrict.id;
+    const isVerified = d[vField] === 1;
+    const color = getCurriculumColor(d[field]);
+    const alpha = isVerified ? 1.0 : 0.4;
+    const r = isSelected ? baseDotR * 2 : baseDotR;
+
+    // Selected glow
+    if (isSelected) {
+      mapCtx.beginPath();
+      mapCtx.arc(sx, sy, r + 6, 0, Math.PI * 2);
+      mapCtx.fillStyle = color.replace(')', ',0.15)').replace('rgb', 'rgba').replace('#', '');
+      // Use hex to rgba conversion
+      const glowAlpha = 0.15;
+      mapCtx.fillStyle = hexToRgba(color, glowAlpha);
+      mapCtx.fill();
+
+      mapCtx.beginPath();
+      mapCtx.arc(sx, sy, r + 3, 0, Math.PI * 2);
+      mapCtx.fillStyle = hexToRgba(color, 0.25);
+      mapCtx.fill();
+    }
+
+    // Main dot
+    mapCtx.beginPath();
+    mapCtx.arc(sx, sy, r, 0, Math.PI * 2);
+    mapCtx.fillStyle = hexToRgba(color, alpha);
+    mapCtx.fill();
+
+    // Border
+    mapCtx.strokeStyle = isSelected ? '#fff' : `rgba(255,255,255,${alpha * 0.5})`;
+    mapCtx.lineWidth = isSelected ? 2 : 1;
+    mapCtx.stroke();
+
+    // Label for large districts when zoomed in
+    if (effectiveZoom > 2 && (d.sc >= getLabelThreshold() || isSelected)) {
+      const fontSize = isSelected ? 11 : 9;
+      mapCtx.font = `${isSelected ? 800 : 600} ${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
+      mapCtx.textAlign = 'center';
+      mapCtx.textBaseline = 'top';
+
+      const labelY = sy + r + 3;
+      const text = d.n.replace(/ (School |City |County )?District$/i, '').replace(/ Public Schools$/i, '');
+
+      // Text shadow for readability
+      const shadowColor = isDark ? 'rgba(30,27,23,0.9)' : 'rgba(245,240,232,0.9)';
+      mapCtx.strokeStyle = shadowColor;
+      mapCtx.lineWidth = 3;
+      mapCtx.lineJoin = 'round';
+      mapCtx.strokeText(text, sx, labelY);
+
+      mapCtx.fillStyle = isDark ? '#e0dbd2' : '#2b2b2b';
+      mapCtx.fillText(text, sx, labelY);
+    }
+  }
+}
+
+function getLabelThreshold() {
+  const ez = baseScale * userZoomLevel;
+  if (ez >= 10) return 3;
+  if (ez >= 5) return 8;
+  if (ez >= 3) return 20;
+  return 50;
+}
+
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// =========================================
+// BOUNDING BOX
+// =========================================
+function getBBox(code) {
+  const f = stateFeatures.find(f=>f.id===FIPS[code]);
+  if(!f) return null;
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  const p = f.type==='MultiPolygon'?f.coordinates:[f.coordinates];
+  for(const poly of p) for(const ring of poly) for(const [x,y] of ring){
+    if(x<x0)x0=x;if(y<y0)y0=y;if(x>x1)x1=x;if(y>y1)y1=y;
+  }
+  return {x0,y0,x1,y1,w:x1-x0,h:y1-y0};
+}
+
+// =========================================
+// ZOOM SYSTEM
+// =========================================
+let zoomAF = null;
+function setZoom(sc,tx,ty,anim){
+  const fs=zoomScale,ftx=zoomTx,fty=zoomTy;
+  if(!anim){
+    isAnimatingZoom=false;
+    zoomScale=sc;zoomTx=tx;zoomTy=ty;
+    renderMap(currentState ? FIPS[currentState] : null);
+    return;
+  }
+  if(zoomAF)cancelAnimationFrame(zoomAF);
+  isAnimatingZoom=true;
+  const st=performance.now(),dur=900;
+  function ease(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+  function tick(now){
+    if(!isAnimatingZoom) return;
+    const e=ease(Math.min((now-st)/dur,1));
+    zoomScale=fs+(sc-fs)*e;zoomTx=ftx+(tx-ftx)*e;zoomTy=fty+(ty-fty)*e;
+    renderMap(currentState ? FIPS[currentState] : null);
+    if((now-st)/dur<1) zoomAF=requestAnimationFrame(tick);
+    else { isAnimatingZoom=false; }
+  }
+  zoomAF=requestAnimationFrame(tick);
+}
+
+function cancelAnimatedZoom(){
+  if(isAnimatingZoom){
+    isAnimatingZoom=false;
+    if(zoomAF){cancelAnimationFrame(zoomAF);zoomAF=null;}
+  }
+}
+
+function zoomToState(code,anim=true){
+  currentState=code;
+  document.getElementById('stateSelector').value=code;
+  const bb=getBBox(code);if(!bb)return;
+  const pad=30,s=Math.min((975-pad*2)/bb.w,(610-pad*2)/bb.h,14);
+  const tx=975/2-(bb.x0+bb.x1)/2*s, ty=610/2-(bb.y0+bb.y1)/2*s;
+  baseScale=s;baseTx=tx;baseTy=ty;userZoomLevel=1;
+  targetZoomScale=s;targetZoomTx=tx;targetZoomTy=ty;
+  if(smoothZoomRAF){cancelAnimationFrame(smoothZoomRAF);smoothZoomRAF=null;}
+  setZoom(s,tx,ty,anim);
+  updateZoomUI();
+  showZoomHint();
+  updateLegendCounts();
+}
+
+function resetZoom(anim=true){
+  currentState='';
+  document.getElementById('stateSelector').value='';
+  selectedDistrict=null;
+  userZoomLevel=1;baseScale=1;baseTx=0;baseTy=0;
+  targetZoomScale=1;targetZoomTx=0;targetZoomTy=0;
+  if(smoothZoomRAF){cancelAnimationFrame(smoothZoomRAF);smoothZoomRAF=null;}
+  setZoom(1,0,0,anim);
+  updateZoomUI();
+  hideZoomHint();
+  updateLegendCounts();
+}
+
+// =========================================
+// SCROLL ZOOM
+// =========================================
+wrapper.addEventListener('wheel',function(e){
+  e.preventDefault();
+
+  const rect=wrapper.getBoundingClientRect();
+  const mx=(e.clientX-rect.left)/displayScale;
+  const my=(e.clientY-rect.top)/displayScale;
+  const mapX=(mx-zoomTx)/zoomScale;
+  const mapY=(my-zoomTy)/zoomScale;
+
+  let dy=e.deltaY;
+  if(e.deltaMode===1)dy*=20;
+  const newLevel=Math.max(1,Math.min(20,userZoomLevel*(1-dy*0.002)));
+  if(Math.abs(newLevel-userZoomLevel)<0.001)return;
+  userZoomLevel=newLevel;
+
+  targetZoomScale=baseScale*userZoomLevel;
+  targetZoomTx=mx-mapX*targetZoomScale;
+  targetZoomTy=my-mapY*targetZoomScale;
+
+  cancelAnimatedZoom();
+  if(zoomAF){cancelAnimationFrame(zoomAF);zoomAF=null;}
+  hideZoomHint();
+  if(!smoothZoomRAF)smoothZoomLoop();
+  updateZoomUI();
+},{passive:false});
+
+function smoothZoomLoop(){
+  const ease=0.35;
+  zoomScale+=(targetZoomScale-zoomScale)*ease;
+  zoomTx+=(targetZoomTx-zoomTx)*ease;
+  zoomTy+=(targetZoomTy-zoomTy)*ease;
+
+  renderMap(currentState ? FIPS[currentState] : null);
+
+  if(Math.abs(zoomScale-targetZoomScale)>0.001||
+     Math.abs(zoomTx-targetZoomTx)>0.05||
+     Math.abs(zoomTy-targetZoomTy)>0.05){
+    smoothZoomRAF=requestAnimationFrame(smoothZoomLoop);
+  } else {
+    zoomScale=targetZoomScale;zoomTx=targetZoomTx;zoomTy=targetZoomTy;
+    renderMap(currentState ? FIPS[currentState] : null);
+    smoothZoomRAF=null;
+  }
+}
+
+// =========================================
+// PAN BOUNDS CLAMPING
+// =========================================
+function clampPanBounds(){
+  if(!currentState) return;
+  const bb=getBBox(currentState);
+  if(!bb)return;
+  const margin=0.2;
+  const sc=targetZoomScale;
+  const sbb={
+    x0:bb.x0*sc+targetZoomTx, y0:bb.y0*sc+targetZoomTy,
+    x1:bb.x1*sc+targetZoomTx, y1:bb.y1*sc+targetZoomTy
+  };
+  const visW=975, visH=610;
+  const minVisW=Math.min((sbb.x1-sbb.x0)*margin, visW*0.5);
+  const minVisH=Math.min((sbb.y1-sbb.y0)*margin, visH*0.5);
+  if(sbb.x1<minVisW) targetZoomTx+=(minVisW-sbb.x1);
+  if(sbb.x0>visW-minVisW) targetZoomTx-=(sbb.x0-(visW-minVisW));
+  if(sbb.y1<minVisH) targetZoomTy+=(minVisH-sbb.y1);
+  if(sbb.y0>visH-minVisH) targetZoomTy-=(sbb.y0-(visH-minVisH));
+}
+
+// =========================================
+// MOUSE PAN
+// =========================================
+wrapper.addEventListener('mousedown',function(e){
+  if(e.button!==0)return;
+  if(zoomScale<=1)return; // no pan at default zoom
+  cancelAnimatedZoom();
+  isDragging=true;
+  dragStartX=e.clientX; dragStartY=e.clientY;
+  dragStartTx=targetZoomTx; dragStartTy=targetZoomTy;
+  wrapper.style.cursor='grabbing';
+  e.preventDefault();
+});
+
+document.addEventListener('mousemove',function(e){
+  if(!isDragging)return;
+  const dx=(e.clientX-dragStartX)/displayScale;
+  const dy=(e.clientY-dragStartY)/displayScale;
+  targetZoomTx=dragStartTx+dx;
+  targetZoomTy=dragStartTy+dy;
+  clampPanBounds();
+  if(!smoothZoomRAF)smoothZoomLoop();
+});
+
+document.addEventListener('mouseup',function(){
+  if(!isDragging)return;
+  isDragging=false;
+  wrapper.style.cursor='grab';
+});
+
+// =========================================
+// TOUCH PAN/PINCH
+// =========================================
+let touchStartDist=0, touchStartZoom=1;
+let touchMode='none';
+let touchStartX=0, touchStartY=0, touchStartTx=0, touchStartTy=0;
+let touchPrevMidX=0, touchPrevMidY=0;
+
+wrapper.addEventListener('touchstart',function(e){
+  cancelAnimatedZoom();
+  if(e.touches.length===2){
+    e.preventDefault();
+    touchMode='pinch';
+    const t0=e.touches[0],t1=e.touches[1];
+    touchStartDist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    touchStartZoom=userZoomLevel;
+    touchPrevMidX=(t0.clientX+t1.clientX)/2;
+    touchPrevMidY=(t0.clientY+t1.clientY)/2;
+  } else if(e.touches.length===1){
+    e.preventDefault();
+    touchMode='pan';
+    touchStartX=e.touches[0].clientX;
+    touchStartY=e.touches[0].clientY;
+    touchStartTx=targetZoomTx;
+    touchStartTy=targetZoomTy;
+  }
+},{passive:false});
+
+wrapper.addEventListener('touchmove',function(e){
+  e.preventDefault();
+  if(e.touches.length===2&&touchMode==='pinch'){
+    const t0=e.touches[0],t1=e.touches[1];
+    const dist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    const ratio=dist/touchStartDist;
+    const midX=(t0.clientX+t1.clientX)/2;
+    const midY=(t0.clientY+t1.clientY)/2;
+    const rect=wrapper.getBoundingClientRect();
+    const cx=(midX-rect.left)/displayScale;
+    const cy=(midY-rect.top)/displayScale;
+    const mapX=(cx-zoomTx)/zoomScale;
+    const mapY=(cy-zoomTy)/zoomScale;
+    userZoomLevel=Math.max(1,Math.min(20,touchStartZoom*ratio));
+    targetZoomScale=baseScale*userZoomLevel;
+    targetZoomTx=cx-mapX*targetZoomScale;
+    targetZoomTy=cy-mapY*targetZoomScale;
+    const panDx=(midX-touchPrevMidX)/displayScale;
+    const panDy=(midY-touchPrevMidY)/displayScale;
+    targetZoomTx+=panDx; targetZoomTy+=panDy;
+    touchPrevMidX=midX; touchPrevMidY=midY;
+    clampPanBounds();
+    hideZoomHint();
+    if(!smoothZoomRAF)smoothZoomLoop();
+    updateZoomUI();
+  } else if(e.touches.length===1&&touchMode!=='none'){
+    if(touchMode==='pinch'){
+      touchMode='pan';
+      touchStartX=e.touches[0].clientX;
+      touchStartY=e.touches[0].clientY;
+      touchStartTx=targetZoomTx;
+      touchStartTy=targetZoomTy;
+      return;
+    }
+    const dx=(e.touches[0].clientX-touchStartX)/displayScale;
+    const dy=(e.touches[0].clientY-touchStartY)/displayScale;
+    targetZoomTx=touchStartTx+dx;
+    targetZoomTy=touchStartTy+dy;
+    clampPanBounds();
+    if(!smoothZoomRAF)smoothZoomLoop();
+  }
+},{passive:false});
+
+wrapper.addEventListener('touchend',function(e){
+  if(e.touches.length===0){
+    touchMode='none';
+  } else if(e.touches.length===1&&touchMode==='pinch'){
+    touchMode='pan';
+    touchStartX=e.touches[0].clientX;
+    touchStartY=e.touches[0].clientY;
+    touchStartTx=targetZoomTx;
+    touchStartTy=targetZoomTy;
+  }
+});
+
+// =========================================
+// ZOOM UI
+// =========================================
+function showZoomHint(){
+  clearTimeout(zoomHintTimer);
+  const hint=document.getElementById('zoomHint');
+  hint.textContent=isTouch?'Pinch to zoom \u2022 Drag to pan':'Scroll to zoom \u2022 Drag to pan';
+  zoomHintTimer=setTimeout(()=>hint.classList.add('visible'),1500);
+}
+function hideZoomHint(){
+  clearTimeout(zoomHintTimer);
+  document.getElementById('zoomHint').classList.remove('visible');
+}
+function updateZoomUI(){
+  const ind=document.getElementById('zoomIndicator');
+  const btns=document.getElementById('zoomButtons');
+  const effectiveZoom = baseScale * userZoomLevel;
+  if(effectiveZoom>1.05){
+    ind.textContent=`${effectiveZoom.toFixed(1)}x`;
+    ind.classList.add('visible');
+    btns.classList.add('visible');
+  } else {
+    ind.classList.remove('visible');
+    btns.classList.remove('visible');
+  }
+}
+
+document.getElementById('zoomInBtn').addEventListener('click',function(e){
+  e.stopPropagation();
+  cancelAnimatedZoom();
+  const cx=975/2, cy=610/2;
+  const mapX=(cx-zoomTx)/zoomScale, mapY=(cy-zoomTy)/zoomScale;
+  userZoomLevel=Math.min(20,userZoomLevel*1.5);
+  targetZoomScale=baseScale*userZoomLevel;
+  targetZoomTx=cx-mapX*targetZoomScale;
+  targetZoomTy=cy-mapY*targetZoomScale;
+  clampPanBounds();
+  if(!smoothZoomRAF)smoothZoomLoop();
+  updateZoomUI();
+  hideZoomHint();
+});
+
+document.getElementById('zoomOutBtn').addEventListener('click',function(e){
+  e.stopPropagation();
+  cancelAnimatedZoom();
+  const cx=975/2, cy=610/2;
+  const mapX=(cx-zoomTx)/zoomScale, mapY=(cy-zoomTy)/zoomScale;
+  userZoomLevel=Math.max(1,userZoomLevel/1.5);
+  targetZoomScale=baseScale*userZoomLevel;
+  targetZoomTx=cx-mapX*targetZoomScale;
+  targetZoomTy=cy-mapY*targetZoomScale;
+  clampPanBounds();
+  if(!smoothZoomRAF)smoothZoomLoop();
+  updateZoomUI();
+});
+
+// =========================================
+// CLICK STATE TO ZOOM
+// =========================================
+function pointInPoly(x,y,ring){
+  let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
+    if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi) inside=!inside;
+  }
+  return inside;
+}
+
+let clickStartX=0,clickStartY=0;
+wrapper.addEventListener('mousedown',function(e){clickStartX=e.clientX;clickStartY=e.clientY;},true);
+
+mapCanvas.addEventListener('click',function(e){
+  // Ignore if dragged
+  if(Math.abs(e.clientX-clickStartX)>5||Math.abs(e.clientY-clickStartY)>5)return;
+
+  const rect=wrapper.getBoundingClientRect();
+  const mx=((e.clientX-rect.left)/displayScale-zoomTx)/zoomScale;
+  const my=((e.clientY-rect.top)/displayScale-zoomTy)/zoomScale;
+
+  // Check if clicking a dot (works at any zoom level)
+  const nearest = findNearestDot(e.clientX-rect.left, e.clientY-rect.top);
+  if(nearest){
+    selectDistrict(nearest);
+    showPreviewForDistrict(nearest, e.clientX, e.clientY);
+    return;
+  }
+
+  // Check if clicking a state
+  for(const f of stateFeatures){
+    const code=Object.keys(FIPS).find(k=>FIPS[k]===f.id);
+    if(!code)continue;
+    const polys=f.type==='MultiPolygon'?f.coordinates:[f.coordinates];
+    for(const poly of polys){
+      if(pointInPoly(mx,my,poly[0])){
+        selectedDistrict=null;
+        hidePreview();
+        zoomToState(code,true);
+        return;
+      }
+    }
+  }
+});
+
+// =========================================
+// HOVER / NEAREST DOT DETECTION
+// =========================================
+let pvX=0,pvY=0,pvTX=0,pvTY=0,pvVisible=false;
+
+function lerp(a,b,t){return a+(b-a)*t;}
+
+function hoverLoop(){
+  if(pvVisible){
+    pvX=lerp(pvX,pvTX,0.14); pvY=lerp(pvY,pvTY,0.14);
+    preview.style.transform=`translate(${Math.round(pvX)}px,${Math.round(pvY)}px)`;
+  }
+  requestAnimationFrame(hoverLoop);
+}
+requestAnimationFrame(hoverLoop);
+
+function findNearestDot(clientPxX, clientPxY) {
+  if(!mapData) return null;
+  const visible = getVisibleDistricts();
+  const mx = clientPxX / displayScale;
+  const my = clientPxY / displayScale;
+  let best = null, bestDist = Infinity;
+  const threshold = baseScale > 1 ? 12 : 8;
+
+  for(const d of visible){
+    const sx = d.x * zoomScale + zoomTx;
+    const sy = d.y * zoomScale + zoomTy;
+    const dist = Math.hypot(sx - mx, sy - my);
+    if(dist < bestDist && dist < threshold){
+      bestDist = dist;
+      best = d;
+    }
+  }
+  return best;
+}
+
+wrapper.addEventListener('mousemove',function(e){
+  if(isDragging) return;
+  const rect = wrapper.getBoundingClientRect();
+  const d = findNearestDot(e.clientX - rect.left, e.clientY - rect.top);
+  if(d){
+    showPreviewForDistrict(d, e.clientX, e.clientY);
+    wrapper.style.cursor = 'pointer';
+  } else {
+    hidePreview();
+    wrapper.style.cursor = baseScale > 1 ? 'grab' : 'default';
+  }
+});
+
+wrapper.addEventListener('mouseleave', function(){ hidePreview(); });
+
+// Touch tap detection for dots
+wrapper.addEventListener('touchstart', function(e){
+  if(e.touches.length !== 1 || baseScale <= 1) return;
+  const rect = wrapper.getBoundingClientRect();
+  const t = e.touches[0];
+  const d = findNearestDot(t.clientX - rect.left, t.clientY - rect.top);
+  if(d){
+    selectDistrict(d);
+    showPreviewForDistrict(d, t.clientX, t.clientY);
+  }
+}, {passive: true});
+
+function showPreviewForDistrict(d, clientX, clientY) {
+  const k5Name = d.k5 != null ? mapData.curricula_k5[d.k5] : null;
+  const g68Name = d.g68 != null ? mapData.curricula_g68[d.g68] : null;
+
+  document.getElementById('pvName').textContent = d.n;
+  document.getElementById('pvState').textContent = STATE_NAMES[d.s] || d.s;
+
+  const pvK5 = document.getElementById('pvK5');
+  if(k5Name){
+    pvK5.innerHTML = `<span class="${d.k5v?'pv-verified':'pv-inferred'}">${k5Name}</span><span class="pv-badge ${d.k5v?'verified':'inferred'}">${d.k5v?'verified':'inferred'}</span>`;
+  } else {
+    pvK5.innerHTML = '<span class="pv-inferred">No data</span>';
+  }
+
+  const pvG68 = document.getElementById('pvG68');
+  if(g68Name){
+    pvG68.innerHTML = `<span class="${d.g68v?'pv-verified':'pv-inferred'}">${g68Name}</span><span class="pv-badge ${d.g68v?'verified':'inferred'}">${d.g68v?'verified':'inferred'}</span>`;
+  } else {
+    pvG68.innerHTML = '<span class="pv-inferred">No data</span>';
+  }
+
+  document.getElementById('pvMeta').textContent = `${d.sc} school${d.sc !== 1 ? 's' : ''}`;
+
+  pvTX = Math.max(8, Math.min(clientX - 130, window.innerWidth - 270));
+  pvTY = Math.max(8, clientY - 200);
+  if(!pvVisible){ pvX=pvTX; pvY=pvTY; preview.style.transform=`translate(${Math.round(pvX)}px,${Math.round(pvY)}px)`; }
+  pvVisible=true; preview.classList.add('visible');
+}
+
+function hidePreview(){
+  pvVisible=false; preview.classList.remove('visible');
+}
+
+function selectDistrict(d){
+  selectedDistrict = d;
+  renderMap(currentState ? FIPS[currentState] : null);
+}
+
+// =========================================
+// LEGEND
+// =========================================
+function buildLegend() {
+  const container = document.getElementById('legend');
+  container.innerHTML = '';
+  const curricula = currentGrade === 'k5' ? mapData.curricula_k5 : mapData.curricula_g68;
+  const field = currentGrade;
+  const vField = currentGrade + 'v';
+
+  // Count per curriculum (respecting state + verified filters)
+  const counts = {};
+  for(const d of mapData.districts){
+    if(d[field] == null) continue;
+    if(verifiedOnly && !d[vField]) continue;
+    if(currentState && d.s !== currentState) continue;
+    const name = curricula[d[field]];
+    counts[name] = (counts[name] || 0) + 1;
+  }
+
+  // Sort by count descending
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+  // Show top MAX_COLORED individually, group the rest as "Other"
+  let otherCount = 0;
+  const otherNames = [];
+  const topEntries = [];
+
+  for(const [name, count] of sorted){
+    const idx = curricula.indexOf(name);
+    if(idx < MAX_COLORED){
+      topEntries.push([name, count, idx]);
+    } else {
+      otherCount += count;
+      otherNames.push(name);
+    }
+  }
+
+  // Sort top entries by their index (keeps consistent order across filters)
+  topEntries.sort((a, b) => a[2] - b[2]);
+
+  for(const [name, count, idx] of topEntries){
+    const color = CURRICULUM_COLORS[idx];
+    const item = document.createElement('div');
+    item.className = 'legend-item' + (hiddenCurricula.has(name) ? ' hidden' : '');
+    item.innerHTML = `<div class="legend-dot" style="background:${color}"></div><span class="legend-name">${name}</span> <span class="legend-count">(${count})</span>`;
+    item.addEventListener('click', () => {
+      if(hiddenCurricula.has(name)) hiddenCurricula.delete(name);
+      else hiddenCurricula.add(name);
+      item.classList.toggle('hidden');
+      renderMap(currentState ? FIPS[currentState] : null);
+    });
+    container.appendChild(item);
+  }
+
+  // "Other" group
+  if(otherCount > 0){
+    const item = document.createElement('div');
+    const allOtherHidden = otherNames.every(n => hiddenCurricula.has(n));
+    item.className = 'legend-item' + (allOtherHidden ? ' hidden' : '');
+    item.innerHTML = `<div class="legend-dot" style="background:${OTHER_COLOR}"></div><span class="legend-name">Other</span> <span class="legend-count">(${otherCount})</span>`;
+    item.addEventListener('click', () => {
+      if(allOtherHidden) {
+        for(const n of otherNames) hiddenCurricula.delete(n);
+      } else {
+        for(const n of otherNames) hiddenCurricula.add(n);
+      }
+      buildLegend();
+      renderMap(currentState ? FIPS[currentState] : null);
+    });
+    container.appendChild(item);
+  }
+
+  // Legend note
+  const note = document.createElement('div');
+  note.className = 'legend-note';
+  note.textContent = 'Solid dots = verified data. Faded dots = inferred. Click a curriculum to show/hide it.';
+  container.appendChild(note);
+}
+
+function updateLegendCounts() {
+  buildLegend();
+}
+
+// =========================================
+// TOOLBAR: GRADE TOGGLE
+// =========================================
+const k5Btn = document.getElementById('k5Btn');
+const g68Btn = document.getElementById('g68Btn');
+
+k5Btn.addEventListener('click', () => {
+  if(currentGrade === 'k5') return;
+  currentGrade = 'k5';
+  k5Btn.classList.add('active');
+  g68Btn.classList.remove('active');
+  hiddenCurricula.clear();
+  buildLegend();
+  renderMap(currentState ? FIPS[currentState] : null);
+});
+
+g68Btn.addEventListener('click', () => {
+  if(currentGrade === 'g68') return;
+  currentGrade = 'g68';
+  g68Btn.classList.add('active');
+  k5Btn.classList.remove('active');
+  hiddenCurricula.clear();
+  buildLegend();
+  renderMap(currentState ? FIPS[currentState] : null);
+});
+
+// =========================================
+// TOOLBAR: VERIFIED TOGGLE
+// =========================================
+const verifiedBtn = document.getElementById('verifiedBtn');
+verifiedBtn.addEventListener('click', () => {
+  verifiedOnly = !verifiedOnly;
+  verifiedBtn.classList.toggle('active', verifiedOnly);
+  buildLegend();
+  renderMap(currentState ? FIPS[currentState] : null);
+});
+
+// =========================================
+// TOOLBAR: STATE SELECTOR
+// =========================================
+const stateSelector = document.getElementById('stateSelector');
+// Populate
+for(const [code, name] of Object.entries(STATE_NAMES).sort((a,b)=>a[1].localeCompare(b[1]))){
+  const opt = document.createElement('option');
+  opt.value = code; opt.textContent = name;
+  stateSelector.appendChild(opt);
+}
+stateSelector.addEventListener('change', () => {
+  const code = stateSelector.value;
+  selectedDistrict = null;
+  hidePreview();
+  if(code) {
+    zoomToState(code, true);
+  } else {
+    resetZoom(true);
+  }
+});
+
+// Reset button
+document.getElementById('resetBtn').addEventListener('click', () => {
+  resetZoom(true);
+});
+
+// =========================================
+// SEARCH
+// =========================================
+const searchInput = document.getElementById('searchInput');
+const searchResults = document.getElementById('searchResults');
+let searchHighlight = -1;
+
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.trim().toLowerCase();
+  searchResults.innerHTML = '';
+  searchHighlight = -1;
+  if(q.length < 2 || !mapData){ searchResults.classList.remove('open'); return; }
+
+  const matches = [];
+  const field = currentGrade;
+  for(const d of mapData.districts){
+    if(d.n.toLowerCase().includes(q)){
+      matches.push(d);
+      if(matches.length >= 20) break;
+    }
+  }
+
+  if(matches.length === 0){ searchResults.classList.remove('open'); return; }
+
+  const curricula = currentGrade === 'k5' ? mapData.curricula_k5 : mapData.curricula_g68;
+  for(let i = 0; i < matches.length; i++){
+    const d = matches[i];
+    const curric = d[field] != null ? curricula[d[field]] : 'No data';
+    const div = document.createElement('div');
+    div.className = 'search-result';
+    div.innerHTML = `<div class="sr-name">${d.n}</div><div class="sr-meta">${STATE_NAMES[d.s] || d.s} \u2022 ${curric}</div>`;
+    div.addEventListener('click', () => {
+      selectSearchResult(d);
+    });
+    searchResults.appendChild(div);
+  }
+  searchResults.classList.add('open');
+});
+
+searchInput.addEventListener('keydown', (e) => {
+  const items = searchResults.querySelectorAll('.search-result');
+  if(!items.length) return;
+  if(e.key === 'ArrowDown'){
+    e.preventDefault();
+    searchHighlight = Math.min(searchHighlight + 1, items.length - 1);
+    items.forEach((el,i) => el.classList.toggle('highlighted', i === searchHighlight));
+    items[searchHighlight].scrollIntoView({block:'nearest'});
+  } else if(e.key === 'ArrowUp'){
+    e.preventDefault();
+    searchHighlight = Math.max(searchHighlight - 1, 0);
+    items.forEach((el,i) => el.classList.toggle('highlighted', i === searchHighlight));
+    items[searchHighlight].scrollIntoView({block:'nearest'});
+  } else if(e.key === 'Enter' && searchHighlight >= 0){
+    e.preventDefault();
+    const field = currentGrade;
+    const q = searchInput.value.trim().toLowerCase();
+    const matches = mapData.districts.filter(d => d.n.toLowerCase().includes(q)).slice(0, 20);
+    if(matches[searchHighlight]) selectSearchResult(matches[searchHighlight]);
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if(!e.target.closest('.search-container')){
+    searchResults.classList.remove('open');
+  }
+});
+
+function selectSearchResult(d) {
+  searchResults.classList.remove('open');
+  searchInput.value = d.n;
+  selectedDistrict = d;
+
+  // If district is in a different state than current view, zoom to that state first
+  if(!currentState || currentState !== d.s){
+    zoomToState(d.s, true);
+    // After state zoom settles, zoom to the district
+    setTimeout(() => zoomToDistrict(d), 1000);
+  } else {
+    zoomToDistrict(d);
+  }
+}
+
+function zoomToDistrict(d) {
+  if(baseScale <= 1) return;
+  const targetUserZoom = 3;
+  userZoomLevel = targetUserZoom;
+  const sc = baseScale * targetUserZoom;
+  const tx = 975/2 - d.x * sc;
+  const ty = 610/2 - d.y * sc;
+  targetZoomScale = sc; targetZoomTx = tx; targetZoomTy = ty;
+  clampPanBounds();
+  if(smoothZoomRAF){cancelAnimationFrame(smoothZoomRAF);smoothZoomRAF=null;}
+  setZoom(targetZoomScale, targetZoomTx, targetZoomTy, true);
+  updateZoomUI();
+}
+
+// =========================================
+// URL PARAMS
+// =========================================
+function readUrlParams() {
+  const p = new URLSearchParams(window.location.search);
+  const state = p.get('state');
+  const grade = p.get('grade');
+  const curriculum = p.get('curriculum');
+  if(grade === 'g68' || grade === '68'){
+    currentGrade = 'g68';
+    g68Btn.classList.add('active');
+    k5Btn.classList.remove('active');
+  }
+  return { state: state && FIPS[state] ? state : '', curriculum: curriculum || '' };
+}
+
+function updateUrl() {
+  const params = new URLSearchParams();
+  if(currentState) params.set('state', currentState);
+  if(currentGrade !== 'k5') params.set('grade', currentGrade);
+  const url = params.toString() ? `?${params}` : window.location.pathname;
+  history.replaceState(null, '', url);
+}
+
+// =========================================
+// INIT
+// =========================================
+async function init(){
+  const params = readUrlParams();
+
+  // Load topology and curriculum data in parallel
+  const [_, data] = await Promise.all([
+    loadTopology(),
+    fetch('/data/curriculum-map.json').then(r => r.json())
+  ]);
+  mapData = data;
+
+  // Build legend and render
+  buildLegend();
+
+  if(params.state) {
+    renderMap(FIPS[params.state]);
+    zoomToState(params.state, true);
+  } else {
+    renderMap(null);
+  }
+
+  // Handle URL curriculum filter
+  if(params.curriculum){
+    const curricula = currentGrade === 'k5' ? mapData.curricula_k5 : mapData.curricula_g68;
+    // Hide everything except the named curriculum
+    for(const c of curricula){
+      if(c.toLowerCase() !== params.curriculum.toLowerCase()) hiddenCurricula.add(c);
+    }
+    buildLegend();
+    renderMap(currentState ? FIPS[currentState] : null);
+  }
+
+  window.addEventListener('resize', () => {
+    displayScale = wrapper.clientWidth / 975;
+    renderMap(currentState ? FIPS[currentState] : null);
+  });
+}
+init();
+</script>
+</body>
+</html>
