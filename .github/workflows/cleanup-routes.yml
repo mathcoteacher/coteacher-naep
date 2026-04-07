@@ -1,0 +1,70 @@
+name: Cleanup Legacy Routes
+
+on:
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Find and delete naep-geo mathcoteacher.com routes
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          echo "Looking up mathcoteacher.com zone..."
+          ZONE_RESPONSE=$(curl -sS \
+            -H "Authorization: Bearer $CF_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/zones?name=mathcoteacher.com")
+
+          echo "$ZONE_RESPONSE" | jq -r '.result[] | "Zone: \(.name) (\(.id))"'
+
+          ZONE_ID=$(echo "$ZONE_RESPONSE" | jq -r '.result[0].id')
+
+          if [[ -z "$ZONE_ID" || "$ZONE_ID" == "null" ]]; then
+            echo "ERROR: could not find mathcoteacher.com zone"
+            exit 1
+          fi
+
+          echo ""
+          echo "Listing worker routes for zone $ZONE_ID..."
+          ROUTES_RESPONSE=$(curl -sS \
+            -H "Authorization: Bearer $CF_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/workers/routes")
+
+          echo "$ROUTES_RESPONSE" | jq -r '.result[] | "Route: \(.pattern) -> \(.script) (id: \(.id))"'
+
+          echo ""
+          echo "Filtering for routes that point to naep-geo..."
+          NAEP_ROUTE_IDS=$(echo "$ROUTES_RESPONSE" | jq -r '.result[] | select(.script == "naep-geo") | .id')
+
+          if [[ -z "$NAEP_ROUTE_IDS" ]]; then
+            echo "No naep-geo routes found. Nothing to delete."
+            exit 0
+          fi
+
+          echo "Will delete these route IDs:"
+          echo "$NAEP_ROUTE_IDS"
+          echo ""
+
+          for ROUTE_ID in $NAEP_ROUTE_IDS; do
+            echo "Deleting route $ROUTE_ID..."
+            curl -sS -X DELETE \
+              -H "Authorization: Bearer $CF_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/workers/routes/$ROUTE_ID" \
+              | jq .
+          done
+
+          echo ""
+          echo "Re-listing routes to confirm:"
+          curl -sS \
+            -H "Authorization: Bearer $CF_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/workers/routes" \
+            | jq -r '.result[] | "Route: \(.pattern) -> \(.script) (id: \(.id))"'
